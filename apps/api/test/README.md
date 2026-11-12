@@ -1,6 +1,6 @@
 # Backend regression tests
 
-Run from `backend` after installing dependencies and generating the Prisma client.
+Run from `apps/api` after installing dependencies and generating the Prisma client.
 
 ```powershell
 npm test
@@ -67,7 +67,7 @@ Verified for this change: targeted OCC tests 4/4 passed, full integration suite
 97/97 passed, unit suite 51/51 passed, and `npm.cmd run build` / `npm.cmd run lint`
 both exited 0 (lint retains existing payment/VNPAY warnings). Raw logs are in
 `../../.brewlite-verification/inventory-optimistic-{targeted,e2e,unit,build,lint}.log`
-relative to `backend`. No migration or reset of the application database is needed.
+relative to `apps/api`. No migration or reset of the application database is needed.
 
 The kitchen regression verifies `GET /api/orders/active` requires BARISTA and
 returns all active orders (63 in the fixture), even behind 65 newer inactive
@@ -94,12 +94,12 @@ with `PUT /api/products/{id}/recipes/{size}`. Availability comes from ingredient
 stock and the recipe. Unconfigured sizes show `Chưa có công thức`. Closing the
 editor keeps the created product and all saved sizes so the card can be reopened.
 
-Frontend form/API regressions run with `npm.cmd test` from `frontend` (118 tests
+Frontend form/API regressions run with `npm.cmd test` from `apps/web` (118 tests
 passed). They cover creation payloads without stock, more than three permitted
 toppings, invalid inputs, duplicate submission prevention and failure/retry.
 
 For the real-browser suite, run the updated frontend on http://localhost:3000,
-configure a separate TEST_DATABASE_URL as above, install Chrome, then from backend:
+configure a separate TEST_DATABASE_URL as above, install Chrome, then from apps/api:
 
 ```powershell
 npm.cmd run test:browser:product
@@ -118,4 +118,4 @@ Set CHROME_PATH if Chrome is not at the default Windows installation path.
 Set PRODUCT_SETUP_OUTPUT to keep the JSON report and screenshots at a chosen path;
 otherwise they are written to a new temporary directory. The verification run's
 artifacts are at `../../.brewlite-verification/product-setup/`, with the log at
-`../../.brewlite-verification/product-setup-e2e.log` (paths relative to backend).
+`../../.brewlite-verification/product-setup-e2e.log` (paths relative to apps/api).

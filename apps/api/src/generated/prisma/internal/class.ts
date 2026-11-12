@@ -23,7 +23,7 @@ const config: runtime.GetPrismaClientConfig = {
       "value": "prisma-client"
     },
     "output": {
-      "value": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite\\backend\\src\\generated\\prisma",
+      "value": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite-a2\\apps\\api\\src\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -37,7 +37,7 @@ const config: runtime.GetPrismaClientConfig = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite\\backend\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite-a2\\apps\\api\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativePath": "../../../prisma",

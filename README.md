@@ -3,15 +3,38 @@
 Ứng dụng đặt cà phê với giỏ hàng, voucher, điểm thưởng, thanh toán VNPAY và quản lý nguyên liệu.
 Xây dựng bằng **Next.js, NestJS và PostgreSQL (Prisma)**.
 
+## Cấu trúc repository
+
+```text
+brewlite-a2/
+|-- apps/
+|   |-- web/                  # Next.js mobile-first/PWA
+|   `-- api/                  # NestJS
+|-- docs/
+|   |-- requirements/         # Task 1
+|   |-- diagrams/             # Task 2
+|   |-- architecture/         # Task 3
+|   |-- traceability-matrix.md
+|   `-- deployment.md
+|-- tests/                    # Integration/E2E toàn hệ thống
+|-- .github/workflows/        # CI/CD
+|-- docker-compose.yml
+|-- .env.example
+`-- README.md
+```
+
+Các bộ kiểm thử theo ứng dụng nằm trong `apps/api/test`, `apps/api/src` và
+`apps/web/test`. Kịch bản kiểm thử xuyên suốt web/API/database nằm trong `tests`.
+
 ## Chạy bằng Docker
 
 Cần Git và Docker Desktop đang hoạt động. Từ thư mục gốc, tạo cấu hình nếu chưa có:
 
 ```powershell
-if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
+if (-not (Test-Path apps/api/.env)) { Copy-Item .env.example apps/api/.env }
 ```
 
-Cập nhật `backend/.env` trước khi chạy:
+Cập nhật `apps/api/.env` trước khi chạy:
 
 | Cấu hình | Yêu cầu |
 | --- | --- |
@@ -21,7 +44,7 @@ Cập nhật `backend/.env` trước khi chạy:
 | `SMS_PROVIDER`, `ESMS_*` | SMS thật dùng `esms`, hai key eSMS, Brandname và mẫu được duyệt chứa `{OTP}`. |
 | `AUTH_OTP_DEMO` | Demo offline: `SMS_PROVIDER=local`, `AUTH_OTP_DEMO=true` trong development/test; OTP là `123456`. |
 
-Toàn bộ biến môi trường nằm trong [backend/.env.example](backend/.env.example). Giữ file `.env` ngoài Git.
+Mẫu cấu hình chung nằm trong [.env.example](.env.example); Docker Compose đọc cấu hình API từ `apps/api/.env`. Giữ file `.env` ngoài Git.
 
 ```powershell
 docker compose up --build
@@ -50,7 +73,7 @@ Sửa code rồi chạy lại `docker compose up --build`. Sau khi đổi `.env`
 ## Phát triển trên máy
 
 Cần Node.js 24.15+ hoặc 26. Các lệnh dưới đây dùng PowerShell; trên macOS/Linux,
-dùng `npm`, `npx` thay cho `npm.cmd`, `npx.cmd`. Dừng container frontend/backend
+dùng `npm`, `npx` thay cho `npm.cmd`, `npx.cmd`. Dừng container `frontend` và `backend`
 nếu đang dùng cùng cổng, rồi khởi động database:
 
 ```powershell
@@ -58,10 +81,10 @@ docker compose stop frontend backend
 docker compose up -d --wait db
 ```
 
-Đảm bảo `backend/.env` đã cấu hình như trên. Chạy backend ở terminal thứ nhất:
+Đảm bảo `apps/api/.env` đã cấu hình như trên. Chạy backend ở terminal thứ nhất:
 
 ```powershell
-cd backend
+cd apps/api
 npm.cmd ci
 npx.cmd prisma generate
 npx.cmd prisma migrate deploy
@@ -71,7 +94,7 @@ npm.cmd run start:dev
 Chạy frontend ở terminal thứ hai, bắt đầu từ thư mục gốc:
 
 ```powershell
-cd frontend
+cd apps/web
 if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
 npm.cmd ci
 npm.cmd run dev -- --port 3000
@@ -84,7 +107,7 @@ khi lockfile đổi, generate/migrate khi Prisma thay đổi.
 
 ## Dữ liệu demo
 
-Nếu cần dữ liệu mẫu, chạy `npx.cmd prisma db seed` trong `backend`,
+Nếu cần dữ liệu mẫu, chạy `npx.cmd prisma db seed` trong `apps/api`,
 hoặc `docker compose run --rm backend npx prisma db seed` từ thư mục gốc.
 
 | Vai trò | Email | Mật khẩu local |
@@ -98,12 +121,12 @@ Chạy trong thư mục tương ứng:
 
 | Thư mục | Lệnh |
 | --- | --- |
-| `backend` | `npm.cmd test` · `npm.cmd run test:e2e` · `npm.cmd run lint` · `npx.cmd tsc --noEmit` |
-| `frontend` | `npm.cmd test` · `npm.cmd run lint` · `npx.cmd tsc --noEmit --incremental false` · `npm.cmd run build` |
+| `apps/api` | `npm.cmd test` · `npm.cmd run test:e2e` · `npm.cmd run lint` · `npx.cmd tsc --noEmit` |
+| `apps/web` | `npm.cmd test` · `npm.cmd run lint` · `npx.cmd tsc --noEmit --incremental false` · `npm.cmd run build` |
 
 Test E2E cần `TEST_DATABASE_URL` trỏ tới database kiểm thử **khác** `DATABASE_URL`;
 eSMS được giả lập, không gửi SMS thật. Kiểm tra dữ liệu Compose trước/sau khi
-khởi động bằng `node scripts/compose-smoke.mjs baseline` và `node scripts/compose-smoke.mjs verify`.
+khởi động bằng `node tests/compose-smoke.mjs baseline` và `node tests/compose-smoke.mjs verify`.
 
 Test OTP thật qua Swagger: `POST /api/auth/register` hoặc `POST /api/auth/resend-otp`,
 sau đó nhập mã SMS vào `POST /api/auth/verify-otp`. Mã có hiệu lực 5 phút;
@@ -116,15 +139,17 @@ CI kiểm tra frontend, backend và chạy thử luồng đặt hàng qua Docker
 
 Khi CI chạy thành công trên bản mới nhất của `main`, [CD](.github/workflows/cd.yml) phát hành hai image lên GitHub Container Registry với tag `latest` và `sha-<commit>`.
 
-- `ghcr.io/letan01012006/brewlite/backend`
-- `ghcr.io/letan01012006/brewlite/frontend`
+- `ghcr.io/letan01012006/brewlite-a2/backend`
+- `ghcr.io/letan01012006/brewlite-a2/frontend`
 
-Xem kết quả trong [GitHub Actions](https://github.com/letan01012006/brewlite/actions). Hai image có thể được dùng để triển khai lên host.
+Xem kết quả trong [GitHub Actions](https://github.com/letan01012006/brewlite-a2/actions). Hai image có thể được dùng để triển khai lên host.
 
 ## Tài liệu
 
-- [Backend: sản phẩm, topping và nâng cấp dữ liệu](backend/README.md#product-và-topping)
-- [Kiểm thử frontend và xử lý trình duyệt từng chạy PWA](frontend/test/README.md)
+- [Triển khai và bàn giao](docs/deployment.md)
+- [Kiểm thử toàn hệ thống](tests/README.md)
+- [Backend: sản phẩm, topping và nâng cấp dữ liệu](apps/api/README.md#product-và-topping)
+- [Kiểm thử frontend và xử lý trình duyệt từng chạy PWA](apps/web/test/README.md)
 
 ## Quy ước làm việc
 
