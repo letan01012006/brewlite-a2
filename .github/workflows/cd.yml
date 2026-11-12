@@ -30,8 +30,10 @@ jobs:
       matrix:
         include:
           - service: backend
+            context: ./apps/api
             build_args: ''
           - service: frontend
+            context: ./apps/web
             build_args: BACKEND_API_URL=http://backend:4000/api
     steps:
       - name: Checkout the revision verified by CI
@@ -59,7 +61,7 @@ jobs:
       - name: Build and push the Docker image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
-          context: ./${{ matrix.service }}
+          context: ${{ matrix.context }}
           build-args: ${{ matrix.build_args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}

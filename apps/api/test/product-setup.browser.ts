@@ -38,7 +38,7 @@ describe('Product setup: Chrome with real NestJS + isolated PostgreSQL', () => {
     const outputDirectory = process.env.PRODUCT_SETUP_OUTPUT
       ? resolve(process.env.PRODUCT_SETUP_OUTPUT)
       : mkdtempSync(join(tmpdir(), 'brewlite-product-report-'));
-    const script = resolve('../frontend/test/inventory-product-browser.mjs');
+    const script = resolve('../web/test/inventory-product-browser.mjs');
     await new Promise<void>((done, reject) => {
       const child = spawn(process.execPath, [script], {
         env: {

@@ -1,6 +1,6 @@
 # Frontend regression checks
 
-Run `npm test` from `frontend` (Node 20+ and installed dependencies).
+Run `npm test` from `apps/web` (Node 20+ and installed dependencies).
 The tests transpile the actual TypeScript modules in isolated contexts using
 the existing TypeScript dependency. No browser, real API, database, or payment
 gateway is used. Run `npx tsc --noEmit --incremental false` and `npm run build`
@@ -39,7 +39,7 @@ they do not validate visual layout or browser accessibility.
 
 ## Browser checks for the website migration
 
-Run all four commands from `frontend`: `npm.cmd run lint`, `npm.cmd test`,
+Run all four commands from `apps/web`: `npm.cmd run lint`, `npm.cmd test`,
 `npx.cmd tsc --noEmit --incremental false`, `npm.cmd run build`.
 Use `npm`/`npx` on other operating systems. Run the built website with
 `npm.cmd run start -- --port 3000` and the existing backend/database.
@@ -92,7 +92,7 @@ The navbar refreshes the profile on focus and every 30 seconds while visible.
 Menu search operates on the complete paginated catalog, displayed 12 at a time;
 customer history requests the corresponding API page, 20 orders at a time.
 
-The barista API regression lives in backend/test/security-concurrency.e2e-spec.ts
+The barista API regression lives in apps/api/test/security-concurrency.e2e-spec.ts
 and uses its isolated PostgreSQL schema. It covers role guards, more than 50
 active orders hidden behind newer history, and deterministic history pagination.
 It also verifies that customer history includes older orders with equal timestamps

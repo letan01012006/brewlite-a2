@@ -2,8 +2,9 @@ node_modules
 dist
 .next
 coverage
+*.tsbuildinfo
 .env
 .env.local
 .DS_Store
 .local-backups
-/backend/src/generated/prisma/*.tmp*
+/apps/api/src/generated/prisma/*.tmp*

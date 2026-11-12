@@ -6,9 +6,9 @@ import { dirname, resolve } from 'node:path';
 import { parseEnv } from 'node:util';
 
 const [mode, file = '.local-backups/docker-compose-20261111/baseline.json'] = process.argv.slice(2);
-assert.ok(['baseline', 'verify'].includes(mode), 'Usage: node scripts/compose-smoke.mjs baseline|verify [snapshot.json]');
+assert.ok(['baseline', 'verify'].includes(mode), 'Usage: node tests/compose-smoke.mjs baseline|verify [snapshot.json]');
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-const settings = parseEnv(readFileSync('backend/.env', 'utf8'));
+const settings = parseEnv(readFileSync('apps/api/.env', 'utf8'));
 const database = new URL(settings.DATABASE_URL);
 const configuredExpiry = Number(settings.ORDER_PENDING_EXPIRE_MINUTES || 15);
 const expiryMinutes = Number.isFinite(configuredExpiry) && configuredExpiry > 0 ? configuredExpiry : 15;
