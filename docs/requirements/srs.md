@@ -159,4 +159,4 @@ Tệp nguồn chỉnh sửa: `docs/diagrams/use-case-overview.puml`. Hai actor c
 
 
 ---
-**Tài liệu liên quan:** [Bối cảnh & phạm vi Task 1.1](./context-and-scope.md) · [Ma trận truy vết yêu cầu Task 1.2](./traceability-task-1.2.md) · [Sơ đồ use-case dạng ảnh](./use-case-overview.png).
+**Tài liệu liên quan:** [Bối cảnh & phạm vi Task 1.1](./context-and-scope.md) · [Ma trận truy vết yêu cầu Task 1.2](./traceability-task-1.2.md) · [Sơ đồ use-case dạng ảnh](../diagrams/use-case-overview.png).
