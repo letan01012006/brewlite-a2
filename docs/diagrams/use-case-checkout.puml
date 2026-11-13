@@ -4,9 +4,21 @@ skinparam backgroundColor white
 skinparam shadowing false
 skinparam packageStyle rectangle
 skinparam actorStyle stickman
+skinparam nodesep 35
+skinparam ranksep 65
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 13
+
 skinparam usecase {
   BackgroundColor #F8FBFE
   BorderColor #417893
+  FontColor #1E293B
+}
+
+skinparam rectangle {
+  BorderColor #334155
+  FontColor #0F172A
+  FontStyle bold
 }
 
 title BrewLite A2 - Sơ đồ use-case Đặt và thanh toán đơn hàng (MVP)
@@ -14,6 +26,7 @@ title BrewLite A2 - Sơ đồ use-case Đặt và thanh toán đơn hàng (MVP)
 actor "Khách hàng\n(Customer)" as Customer
 
 rectangle "BrewLite - Đặt và thanh toán đơn hàng (MVP)" {
+  usecase "UC-05\nĐăng nhập" as UC05
   usecase "UC-06\nĐặt đơn hàng" as UC06
   usecase "UC-07\nThanh toán Ví/Thẻ mô phỏng" as UC07
 
@@ -21,27 +34,23 @@ rectangle "BrewLite - Đặt và thanh toán đơn hàng (MVP)" {
   usecase "Kiểm tra đủ nguyên liệu" as STOCK
   usecase "Ghi nhận kết quả thanh toán" as RESULT
 
-  usecase "UC-05\nĐăng nhập" as UC05
-  usecase "Thử lại thanh toán" as RETRY
-  usecase "Xử lý đơn PENDING quá hạn\n(15 phút)" as EXPIRE
+  usecase "Xử lý đơn PENDING\nquá hạn (15 phút)" as EXPIRE
+  usecase "Thử lại thanh toán\n(Idempotency-Key mới)" as RETRY
 }
 
+' Quan hệ Actor - Use Case
 Customer -- UC06
 Customer -- UC07
 
+' Quan hệ <<include>>
 UC06 ..> PRICE : <<include>>
 UC06 ..> STOCK : <<include>>
 UC07 ..> STOCK : <<include>>
 UC07 ..> RESULT : <<include>>
 
-UC05 ..> UC06 : <<extend>>\n(khi chưa xác thực)
-RETRY ..> UC07 : <<extend>>\n(khi thanh toán thất bại)
-EXPIRE ..> UC06 : <<extend>>\n(sau 15 phút chưa thanh toán)
-
-note right of UC07
-  - Chỉ hỗ trợ Ví/Thẻ mô phỏng (WALLET, CARD)
-  - MockPaymentService nằm bên trong hệ thống
-  - Barista tiếp nhận ở hậu điều kiện (đơn PAID)
-end note
+' Quan hệ <<extend>> (tách hướng rõ ràng để không đè nhãn)
+UC05 .right.> UC06 : <<extend>>\n[Chưa đăng nhập]
+EXPIRE .left.> UC06 : <<extend>>\n[Quá hạn 15 phút]
+RETRY .up.> UC07 : <<extend>>\n[Thanh toán FAILED]
 
 @enduml
