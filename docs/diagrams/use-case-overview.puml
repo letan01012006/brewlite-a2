@@ -1,0 +1,52 @@
+@startuml BrewLite_A2_Use_Case_Overview
+' Sơ đồ tổng quát Task 1.2 - BrewLite A2
+' Mô hình UML tương đương bản SVG/PNG; khi render lại, PlantUML tự bố trí lại vị trí.
+left to right direction
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam defaultFontName "DejaVu Sans"
+skinparam actorStyle stickman
+skinparam packageStyle rectangle
+skinparam usecase {
+ BackgroundColor #F0F8FE
+ BorderColor #448DB3
+ FontColor #173D57
+}
+actor "Khách hàng\n(Customer)" as Customer
+actor "Nhân viên quầy\n(Barista)" as Barista
+rectangle "HỆ THỐNG BREWLITE A2 — MVP" {
+  usecase "UC-01: Xem menu" as UC01
+  usecase "UC-02: Xem chi tiết và chọn tùy chọn" as UC02
+  usecase "UC-03: Quản lý giỏ hàng" as UC03
+  usecase "UC-04: Đăng ký và xác minh OTP" as UC04
+  usecase "UC-05: Đăng nhập" as UC05
+  usecase "UC-06: Đặt đơn hàng" as UC06
+  usecase "UC-07: Thanh toán Ví/Thẻ mô phỏng" as UC07
+  usecase "UC-08: Xem lịch sử đơn hàng" as UC08
+  usecase "UC-09: Theo dõi / xem chi tiết đơn" as UC09
+  usecase "UC-10: Xem hàng đợi" as UC10
+  usecase "UC-11: Cập nhật trạng thái" as UC11
+  usecase "UC-12: Bàn giao đơn tại quầy" as UC12
+  usecase "Tính lại giá tại máy chủ" as PRICE
+  usecase "Kiểm tra đủ nguyên liệu" as STOCK
+  usecase "Ghi nhận kết quả thanh toán" as PAYMENT_RESULT
+  usecase "Gửi lại mã OTP" as RESEND
+}
+Customer -- UC01
+Customer -- UC02
+Customer -- UC03
+Customer -- UC04
+Customer -- UC05
+Customer -- UC06
+Customer -- UC07
+Customer -- UC08
+Customer -- UC09
+Barista -- UC10
+Barista -- UC11
+Barista -- UC12
+UC06 ..> PRICE : <<include>>
+UC06 ..> STOCK : <<include>>
+UC07 ..> STOCK : <<include>>
+UC07 ..> PAYMENT_RESULT : <<include>>
+RESEND ..> UC04 : <<extend>>
+@enduml
