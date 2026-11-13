@@ -115,9 +115,9 @@ Mỗi dòng có một điều kiện nghiệm thu đo/kiểm được; mã test 
 | W-07 | Khách tự hủy đơn và yêu cầu hoàn tiền | API kế thừa có thể tồn tại, nhưng không phải quy trình tự phục vụ bắt buộc của MVP A2. |
 
 ## 5. Sơ đồ use-case tổng quát
-![Use-case tổng quát BrewLite](./use-case-overview.svg)
+![Use-case tổng quát BrewLite](../diagrams/use-case-overview.svg)
 
-Tệp nguồn chỉnh sửa: `docs/requirements/use-case-overview.puml`. Hai actor chính là Customer và Barista; các use-case xử lý giá/tồn/kết quả thanh toán được `<<include>>` để làm rõ những bước hệ thống bắt buộc thực hiện.
+Tệp nguồn chỉnh sửa: `docs/diagrams/use-case-overview.puml`. Hai actor chính là Customer và Barista; các use-case xử lý giá/tồn/kết quả thanh toán được `<<include>>` để làm rõ những bước hệ thống bắt buộc thực hiện.
 
 ## 6. Truy vết yêu cầu – use-case – API
 | UC | Use-case | Actor | FR liên quan | API / vị trí mã nguồn |
