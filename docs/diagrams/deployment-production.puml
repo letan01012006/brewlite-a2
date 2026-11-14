@@ -1,0 +1,84 @@
+@startuml BrewLite_A2_Deployment_Production
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 13
+skinparam nodesep 40
+skinparam ranksep 55
+top to bottom direction
+
+title BrewLite A2 — UML Deployment Diagram (Local, CI/CD và Production)
+
+node "Thiết bị người dùng\n(Customer / Barista)" as Client {
+  artifact "Trình duyệt Web\n(mobile-first / desktop)" as Browser
+}
+
+node "GitHub (CI/CD và Container Registry)" as GH {
+  artifact "Repository\nletan01012006/brewlite-a2" as Repo
+  node "GitHub Actions Runner" as GHA {
+    component "ci.yml\nlint · test · build · compose smoke test" as CI
+    component "cd.yml\njob publish: build & push image\njob deploy: Task 5.3 (kế hoạch, chưa có trong cd.yml)" as CD
+  }
+  node "GHCR (ghcr.io)" as GHCR {
+    artifact "…/backend\ntag: latest, sha-<7 ký tự>" as ImgApi
+    artifact "…/frontend\ntag: latest, sha-<7 ký tự>" as ImgWeb
+  }
+  artifact "GITHUB_TOKEN (github.token)\nSecrets deploy (đề xuất, chỉ ghi tên):\nDEPLOY_HOST · DEPLOY_USER · DEPLOY_SSH_KEY · DEPLOY_PATH" as Tok
+}
+
+node "Production (phương án đề xuất: 1 VPS Linux + Docker Compose)" as Prod {
+  node "Edge / Reverse Proxy (Caddy hoặc Nginx)\nHTTPS :443 · <domain production>" as Edge {
+    component "TLS termination\nchuyển toàn bộ lưu lượng tới frontend :3000" as Router
+  }
+  node "Container: Frontend" as FE {
+    component "Next.js standalone :3000\n(apps/web)\nrewrite /api/* → backend" as Web
+  }
+  node "Container: Backend" as BE {
+    component "NestJS API :4000 (apps/api)\nentrypoint: prisma migrate deploy" as Api
+    component "GET /api/health" as Health
+  }
+  node "Database (mạng riêng, không có IP public)" as DBN {
+    database "PostgreSQL 16 :5432" as Db
+    storage "Docker volume trên VPS\n(cần sao lưu định kỳ)" as Vol
+  }
+  note right of Web
+    BACKEND_API_URL=http://backend:4000/api
+    được đóng cứng lúc build (cd.yml)
+  end note
+  note right of Api
+    Env/secret: DATABASE_URL, JWT_SECRET,
+    OTP_HASH_SECRET, PORT=4000,
+    PAYMENT_MOCK_ENABLED=true (bắt buộc cho WALLET/CARD)
+  end note
+}
+
+node "Local (Docker Compose)" as Local {
+  component "frontend :3000" as LWeb
+  component "backend :4000" as LApi
+  database "PostgreSQL 16 :5432\nvolume brewlite_pgdata" as LDb
+}
+
+Browser --> Router : HTTPS :443
+Router --> Web : HTTP :3000
+Web --> Api : HTTP :4000 (/api, hostname backend)
+Api --> Db : TCP :5432
+Db -- Vol : mount /var/lib/postgresql/data
+Api -right- Health
+
+Repo --> CI : push / PR vào main
+CI --> CD : workflow_run (thành công)
+CD --> ImgApi : docker push
+CD --> ImgWeb : docker push
+Tok ..> CD
+ImgWeb ..> Web : docker pull
+ImgApi ..> Api : docker pull
+CD ..> Prod : SSH + docker compose pull/up\ntheo tag sha-<7> (kế hoạch)
+CD ..> Health : health check sau deploy (kế hoạch)
+
+LWeb --> LApi : HTTP /api/*
+LApi --> LDb : TCP 5432
+
+Client -[hidden]down-> GH
+GH -[hidden]down-> Prod
+Prod -[hidden]right-> Local
+@enduml
