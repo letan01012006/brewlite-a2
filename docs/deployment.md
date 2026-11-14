@@ -134,8 +134,8 @@ Kế hoạch triển khai tự động (Continuous Deployment) và quy trình ph
   - **Quy tắc an toàn:** Tuyệt đối KHÔNG chạy các mutation tạo đơn hay thanh toán tự động trên môi trường Production để tránh sinh dữ liệu rác.
 
 ### 5. Cấu hình biến môi trường bắt buộc tại Production
-- `PAYMENT_MOCK_ENABLED=true`: Bắt buộc phải cấu hình biến này trên máy chủ Production để kích hoạt các phương thức thanh toán mô phỏng (`WALLET` và `CARD`). Nếu thiếu hoặc đặt `false`, hệ thống sẽ từ chối thanh toán với mã lỗi 400 `PAYMENT_METHOD_NOT_SUPPORTED`.
-- Rủi ro đóng cứng URL: Image Frontend đóng gói `BACKEND_API_URL=http://backend:4000/api` lúc build. Do đó, trên Production, backend container phải nằm trong cùng network với hostname `backend:4000`, hoặc nền tảng triển khai phải hỗ trợ định tuyến nội bộ tương ứng.
+- `PAYMENT_MOCK_ENABLED=true`: Bắt buộc phải cấu hình biến này trên máy chủ Production để kích hoạt các phương thức thanh toán mô phỏng (`WALLET` và `CARD`). Nếu thiếu hoặc đặt `false`, hệ thống sẽ từ chối thanh toán với mã lỗi 400 `PAYMENT_METHOD_NOT_SUPPORTED`. Đây là thanh toán mô phỏng phục vụ demo MVP, không có tiền thật và không phải hệ thống thanh toán thương mại; tham số `mockResult` chỉ có thể ép kết quả thất bại.
+- Rủi ro đóng cứng URL: Image Frontend đóng gói `BACKEND_API_URL=http://backend:4000/api` lúc build. Do đó, trên Production, backend container phải nằm trong cùng network với hostname `backend:4000`, hoặc nền tảng triển khai phải hỗ trợ định tuyến nội bộ tương ứng. Trình duyệt không bao giờ gọi hostname này: mã frontend chỉ gọi đường dẫn tương đối `/api/...` về chính domain, còn việc chuyển tiếp sang `backend:4000` do Next.js thực hiện ở phía server.
 
 ### 6. Quy trình Rollback khi triển khai thất bại
 - **Điều kiện kích hoạt Rollback:**
