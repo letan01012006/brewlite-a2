@@ -1,0 +1,199 @@
+@startuml
+' BrewLite A2 — Task 2.3
+' Domain Class Diagram — source-verified against apps/api/prisma/schema.prisma
+' Layout may differ from authored class-domain.svg; data/operations/relations are aligned.
+!theme plain
+skinparam backgroundColor white
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam classBorderColor #4A6783
+skinparam classBackgroundColor #F4F9FE
+skinparam ArrowColor #62758A
+skinparam linetype ortho
+left to right direction
+
+class Topping <<entity>> {
+ + id: Int <<PK>>
+ + name: String
+ + price: Int
+ + isActive: Boolean
+ + ingredientId: Int?
+ + quantityPerServing: Decimal?
+ __ Domain service operations: ToppingsService __
+ + findAll()
+ + create()
+}
+
+class User <<entity>> {
+ + id: Int <<PK>>
+ + fullName: String
+ + phone: String?
+ + email: String?
+ - passwordHash: String
+ + isPhoneVerified: Boolean
+ + role: Role
+ + loyaltyPoints: Int
+ + createdAt: DateTime
+ __ Domain service operations: AuthService __
+ + register()
+ + verifyOtp()
+ + login()
+}
+
+class Product <<entity>> {
+ + id: Int <<PK>>
+ + name: String
+ + price: Int
+ + category: String
+ + imageUrl: String
+ + description: String?
+ + stock: Int {legacy}
+ + isActive: Boolean
+ __ Domain service operations: ProductsService __
+ + findAll()
+ + findOne()
+ + updateStatus()
+ + updateToppings()
+}
+
+class Order <<entity>> {
+ + id: Int <<PK>>
+ + userId: Int <<FK>>
+ + status: OrderStatus
+ + subtotal: Int
+ + discountAmount: Int
+ + total: Int
+ + promoCode: String?
+ + creationKey: String?
+ + pointsEarned: Int
+ + createdAt: DateTime
+ __ Domain service operations: OrdersService __
+ + create()
+ + updateStatus()
+ + cancelOrder()
+}
+
+class OrderItem <<entity>> {
+ + id: Int <<PK>>
+ + orderId: Int <<FK>>
+ + productId: Int <<FK>>
+ + productName: String
+ + size: Size
+ + toppings: Json
+ + recipeSnapshot: Json?
+ + qty: Int
+ + unitPrice: Int
+ + lineTotal: Int
+ + note: String?
+}
+
+class Payment <<entity>> {
+ + id: Int <<PK>>
+ + orderId: Int <<FK>>
+ + amount: Int
+ + method: PaymentMethod
+ + status: PaymentStatus
+ + idempotencyKey: String
+ + pointsUsed: Int
+ + failureReason: String?
+ + createdAt: DateTime
+ __ Domain service operations: PaymentsService __
+ + processPayment()
+ + getPayment()
+ + refundPayment()
+}
+
+class "Promotion" as Promotion <<Prisma: PromoCode>> #FFF9E8 {
+ + id: Int <<PK>>
+ + code: String
+ + type: DiscountType
+ + value: Int
+ + minOrderValue: Int
+ + maxDiscount: Int?
+ + startsAt: DateTime
+ + expiresAt: DateTime
+ + usageLimit: Int?
+ + usedCount: Int
+ + isActive: Boolean
+ __ Domain service operations: PromotionsService __
+ + validatePromotion()
+}
+
+class LoyaltyTransaction <<extension>> #FFF9E8 {
+ + id: Int <<PK>>
+ + userId: Int <<FK>>
+ + orderId: Int <<FK>>
+ + paymentId: Int?
+ + type: LoyaltyTransactionType
+ + eventKey: String
+ + points: Int
+ + relatedTransactionId: Int?
+ + reversedAt: DateTime?
+ + createdAt: DateTime
+ __ Domain helper operations: order-loyalty.ts __
+ + awardOrderPoints()
+ + revokeOrderPoints()
+}
+
+enum Role #F5F0FA {
+ CUSTOMER
+ BARISTA
+ MANAGER
+}
+enum OrderStatus #F5F0FA {
+ PENDING
+ PAID
+ PREPARING
+ READY
+ COMPLETED
+ PAYMENT_FAILED
+ CANCELLED
+}
+enum Size #F5F0FA {
+ S
+ M
+ L
+}
+enum PaymentMethod #F5F0FA {
+ WALLET
+ CARD
+ VNPAY
+ POINTS
+}
+enum PaymentStatus #F5F0FA {
+ PROCESSING
+ SUCCESS
+ FAILED
+ EXPIRED
+ CANCELLED
+ NEEDS_REFUND
+}
+enum DiscountType #F5F0FA {
+ PERCENT
+ FIXED
+}
+enum LoyaltyTransactionType #F5F0FA {
+ EARN
+ REDEEM
+ REFUND
+ ADJUSTMENT
+ REVOKE
+}
+
+User "1" -- "0..*" Order : places
+User "1" -- "0..*" LoyaltyTransaction : owns
+Product "0..*" -- "0..*" Topping : offers
+Product "1" -- "0..*" OrderItem : referenced
+Order "1" *-- "0..*" OrderItem : contains
+Order "1" -- "0..*" Payment : paid by
+Order "0..*" -- "0..1" Promotion : uses
+Order "1" -- "0..*" LoyaltyTransaction : earns
+Payment "0..1" -- "0..*" LoyaltyTransaction : links
+LoyaltyTransaction "0..1" -- "0..*" LoyaltyTransaction : reverses
+
+' Enum references are expressed by typed fields above; omit dashed links to reduce clutter.
+' Order->OrderItem multiplicity is 0..* in Prisma; create API requires 1..30.
+' Operations in diagrams are implemented in NestJS services/helpers, not instance methods on Prisma models.
+@enduml
