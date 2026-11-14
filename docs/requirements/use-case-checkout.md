@@ -32,6 +32,8 @@ Theo cam kết tại `context-and-scope.md` và `srs.md`, các tính năng sau n
 - `W-06`: Cổng quản trị (Admin Portal) riêng biệt cho chủ cửa hàng/quản lý.
 - `W-07`: Khách hàng tự hủy đơn sau khi đã thanh toán hoặc luồng tự phục vụ yêu cầu hoàn tiền.
 
+> **Ghi chú phạm vi (Scope Boundary):** Các mục `W-01`, `W-02`, `W-03` đã có trong baseline A1; trong A2 không thuộc phạm vi nghiệm thu Task 1.3; mã kế thừa A1 còn trong repo và không được coi là bằng chứng hoàn thành Task 1.3; test A2 không kiểm chứng chúng. Lý do thu hẹp: [NHÓM ĐIỀN LÝ DO].
+
 ---
 
 ## 2. Bảng tác nhân (Actors)
@@ -42,7 +44,7 @@ Theo cam kết tại `context-and-scope.md` và `srs.md`, các tính năng sau n
 
 ### Giải thích kiến trúc về Actor:
 1. **MockPaymentService nằm BÊN TRONG hệ thống (Internal Component):**  
-   Thành phần xử lý thanh toán mô phỏng `MockPaymentService` là một service nội bộ được backend NestJS khởi tạo cục bộ để phục vụ môi trường kiểm thử và demo đồ án MVP (`apps/api/src/modules/payments/mock-payment.service.ts`). Nó xử lý logic đồng bộ tức thì, không giao tiếp với bên thứ ba qua Internet (như VNPAY Sandbox ở `W-01`). Vì vậy, theo nguyên tắc mô hình hóa UML, `MockPaymentService` **không được xem là External Actor**.
+   Thành phần xử lý thanh toán mô phỏng `MockPaymentService` là một service nội bộ được backend NestJS khởi tạo cục bộ để phục vụ môi trường kiểm thử và demo đồ án MVP (`apps/api/src/payments/mock-payment.service.ts`). Nó xử lý logic đồng bộ tức thì, không giao tiếp với bên thứ ba qua Internet (như VNPAY Sandbox ở `W-01`). Vì vậy, theo nguyên tắc mô hình hóa UML, `MockPaymentService` **không được xem là External Actor**.
 2. **Nhân viên quầy (Barista) chỉ xuất hiện ở HẬU ĐIỀU KIỆN:**  
    Barista là Actor nghiệp vụ của quy trình xử lý đơn tại quầy (`UC-10 Xem hàng đợi`, `UC-11 Cập nhật trạng thái`, `UC-12 Bàn giao đơn`). Khi Khách hàng hoàn tất thanh toán (đơn chuyển sang `PAID`), đơn hàng xuất hiện trong danh sách pha chế của Barista. Barista **không trực tiếp tham gia hay can thiệp vào các bước trong use-case đặt và thanh toán này**.
 
@@ -55,7 +57,6 @@ Sơ đồ thể hiện ranh giới hệ thống, tác nhân Customer, hai use-ca
 ![Sơ đồ use-case Đặt và thanh toán đơn hàng](../diagrams/use-case-checkout.svg)
 
 - **Tệp nguồn PlantUML:** [`docs/diagrams/use-case-checkout.puml`](../diagrams/use-case-checkout.puml)
-- **Bản ảnh độ phân giải cao PNG:** [`docs/diagrams/use-case-checkout.png`](../diagrams/use-case-checkout.png)
 
 ### Quan hệ giữa các Use-Case:
 - **`UC-06 Đặt đơn hàng` bao gồm (`<<include>>`):**
@@ -66,7 +67,7 @@ Sơ đồ thể hiện ranh giới hệ thống, tác nhân Customer, hai use-ca
   - `Ghi nhận kết quả thanh toán`: Lưu giao dịch thanh toán thành công/thất bại (`FR-20`).
 - **Các quan hệ mở rộng (`<<extend>>`):**
   - `UC-05 Đăng nhập` extends `UC-06`: Kích hoạt khi khách hàng chưa đăng nhập hoặc phiên làm việc hết hạn (`FR-12`).
-  - `Thử lại thanh toán` extends `UC-07`: Kích hoạt khi thanh toán thất bại (`mockResult = FAILED`), cho phép khách chọn phương thức khác và gửi lại với Idempotency-Key mới (`FR-20`).
+  - `Thử lại thanh toán` extends `UC-07`: Kích hoạt khi thanh toán thất bại (`mockResult = FAILED`) hoặc dịch vụ thanh toán lỗi/không phản hồi (`EX-14`), cho phép khách chọn phương thức khác và gửi lại với Idempotency-Key mới (`FR-20`).
   - `Xử lý đơn PENDING quá hạn` extends `UC-06`: Tiến trình nền tự động chuyển đơn sang `CANCELLED` sau 15 phút chưa thanh toán (`FR-30`).
 
 ---
@@ -77,7 +78,7 @@ Sơ đồ thể hiện ranh giới hệ thống, tác nhân Customer, hai use-ca
 Khách hàng bấm nút **"Thanh toán"** hoặc **"Tiến hành đặt hàng"** từ màn hình Giỏ hàng (`UC-03`) khi trong giỏ đã có từ 1 đến 30 dòng sản phẩm hợp lệ.
 
 ### 4.2. Tiền điều kiện (Preconditions)
-1. **Xác thực danh tính:** Khách hàng đã đăng nhập thành công với vai trò `CUSTOMER` và đính kèm JWT Token hợp lệ còn hạn trong request header (`FR-12`, `FR-13`).
+1. **Xác thực danh tính:** Khi gửi các request tạo đơn và thanh toán, khách hàng phải có phiên đăng nhập hợp lệ với vai trò `CUSTOMER` và đính kèm JWT Token còn hạn trong request header (`FR-12`, `FR-13`). Nếu chưa đăng nhập hoặc token hết hạn, Use-Case `UC-05 Đăng nhập` được kích hoạt (xem `EX-01`); đăng nhập thất bại thì không có đơn hàng nào được tạo, đăng nhập thành công thì khách quay lại bước đang dở.
 2. **Dữ liệu giỏ hàng hợp lệ:** Giỏ hàng có từ 1 đến 30 dòng món; mỗi dòng chọn đúng 1 size (S/M/L), số lượng từ 1 đến 20 ly, tối đa 3 topping không trùng lặp (`FR-05`, `FR-07`, `FR-09`, `BR-01`).
 3. **Món đang kinh doanh:** Toàn bộ sản phẩm trong giỏ đều ở trạng thái đang mở bán (`isActive = true`) trong CSDL (`FR-01`).
 4. **Kết nối mạng khả dụng:** Ứng dụng client duy trì kết nối Internet tới máy chủ API (`NFR-06`, `NFR-15`).
@@ -91,8 +92,10 @@ Khách hàng bấm nút **"Thanh toán"** hoặc **"Tiến hành đặt hàng"**
 5. **Giao diện khách hàng:** Giỏ hàng được làm rỗng; màn hình hiển thị trang Xác nhận đơn hàng (#id, chi tiết món, tổng tiền, phương thức thanh toán) và hướng dẫn nhận món tại quầy (`FR-23`).
 
 #### b) Hậu điều kiện thất bại (Failure End Condition):
-1. **Thanh toán thất bại:** `Payment` ghi nhận trạng thái `FAILED`, `Order` chuyển sang `PAYMENT_FAILED` (HTTP `402`), không có nguyên liệu nào bị giữ chỗ, giỏ hàng giữ nguyên; giao diện hiển thị thông báo lỗi và nút "Thử lại thanh toán" (`FR-20`).
-2. **Thiếu nguyên liệu / Tranh chấp kho:** Hệ thống từ chối tạo đơn hoặc từ chối thanh toán (HTTP `409 Conflict`), không giữ kho, giỏ hàng được giữ nguyên, thông báo cụ thể món/nguyên liệu thiếu cho khách hàng (`FR-17`, `FR-22`).
+1. **Thanh toán thất bại:** `Payment` ghi nhận trạng thái `FAILED`, `Order` chuyển sang `PAYMENT_FAILED` (HTTP `402 Payment Required`), không có nguyên liệu nào bị giữ chỗ, giỏ hàng giữ nguyên; giao diện hiển thị thông báo lỗi và nút "Thử lại thanh toán" (`FR-20`).
+2. **Thiếu nguyên liệu / Tranh chấp kho:**
+   - **Lúc tạo đơn (`POST /api/orders`):** Hệ thống từ chối tạo đơn với HTTP `409 Conflict` (mã lỗi `INSUFFICIENT_INGREDIENTS`), không sinh bản ghi `Order`, giỏ hàng giữ nguyên (`FR-17`).
+   - **Lúc thanh toán (`POST /api/payments`):** Hệ thống từ chối thanh toán với HTTP `402 Payment Required` (kết quả `PAYMENT_FAILED`), ghi nhận `Payment = FAILED`, chuyển trạng thái `Order = PAYMENT_FAILED`, `failureReason` chứa `INSUFFICIENT_INGREDIENTS`, không giữ chỗ nguyên liệu, giỏ hàng giữ nguyên (`FR-17`, `FR-22`).
 
 ---
 
@@ -108,7 +111,7 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 | **4** | Customer (Web Client) | Client tự động sinh chuỗi `Idempotency-Key` (UUIDv4) cho mutation tạo đơn và gửi request `POST /api/orders` kèm payload giỏ hàng. | Nhận request kèm header `Idempotency-Key`, payload danh sách dòng món `{ items: [...] }`. | `FR-15`, `FR-18` |
 | **5** | System (Backend) | `OrdersService` thực thi xử lý nghiệp vụ tạo đơn: | 1. Bỏ qua toàn bộ giá client; truy vấn DB tính lại đơn giá, phụ thu size, topping và tổng tiền.<br>2. Kiểm tra tồn kho nguyên liệu lần 1 theo recipe.<br>3. Tạo bản ghi `Order` với trạng thái **`PENDING`** (chưa giữ kho) và lưu idempotency key.<br>4. Trả về HTTP `201 Created` kèm thông tin đơn và mã `id`. | `FR-15`, `FR-16`, `FR-17`, `FR-18`, `NFR-02` |
 | **6** | Customer (Web Client) | Nhận thông tin đơn `PENDING` (mã `#id`), client sinh `Idempotency-Key` mới (UUIDv4) cho mutation thanh toán và gửi request `POST /api/payments`. | Nhận request thanh toán kèm header `Idempotency-Key`, payload `{ orderId: id, method: "WALLET", mockResult: "SUCCESS" }`. | `FR-19`, `FR-21` |
-| **7** | System (Backend) | `PaymentsService` thực thi giao dịch thanh toán trong một Database Transaction nguyên tử: | 1. Khóa dòng đơn hàng `SELECT ... FOR UPDATE` chống tranh chấp.<br>2. Xác minh đơn thuộc quyền sở hữu khách hàng và đang ở trạng thái `PENDING` / `PAYMENT_FAILED`.<br>3. Gọi `MockPaymentService` xử lý thanh toán mô phỏng.<br>4. Kiểm tra tồn kho khả dụng lần 2; thực hiện giữ chỗ nguyên liệu nguyên tử (`InventoryReservation = HELD`).<br>5. Ghi bản ghi `Payment` với trạng thái `SUCCESS` và lưu idempotency key.<br>6. Cập nhật trạng thái `Order` từ `PENDING` sang **`PAID`**.<br>7. Commit transaction. | `FR-17`, `FR-20`, `FR-21`, `FR-22`, `NFR-05` |
+| **7** | System (Backend) | `PaymentsService` xử lý thanh toán theo **ba pha**, gồm hai Database Transaction riêng biệt, không giữ khóa DB trong lúc gọi dịch vụ thanh toán: | **Pha A – Giành quyền thanh toán (Transaction 1):**<br>1. Khóa dòng đơn hàng `SELECT ... FOR UPDATE`.<br>2. Xác minh đơn thuộc khách hàng và đang `PENDING` / `PAYMENT_FAILED`; nếu đã có `Payment` đang `PROCESSING` thì từ chối (`PAYMENT_IN_PROGRESS`).<br>3. Tạo `Payment` trạng thái `PROCESSING` kèm `idempotencyKey`, rồi Commit.<br>**Pha B – Gọi dịch vụ thanh toán (ngoài transaction):**<br>4. Gọi `MockPaymentService.charge()`. Nếu dịch vụ ném lỗi hoặc không phản hồi, kết quả được coi là thất bại (`EX-14`).<br>**Pha C – Chốt kết quả (Transaction 2):**<br>5. Khóa lại dòng đơn hàng. Nếu thanh toán thành công thì kiểm tra tồn kho lần 2 và giữ chỗ nguyên liệu (`InventoryReservation = HELD`).<br>6. Thành công: `Payment = SUCCESS`, `Order = PAID`. Thiếu nguyên liệu hoặc thanh toán thất bại: `Payment = FAILED`, `Order = PAYMENT_FAILED`, không giữ kho.<br>7. Commit transaction. | `FR-17`, `FR-20`, `FR-21`, `FR-22`, `NFR-05` |
 | **8** | System (Backend) | — | Trả về HTTP `201 Created` kèm đối tượng `Payment` thành công và `Order` đã ở trạng thái `PAID`. Đơn hàng tự động hiển thị trong hàng đợi quầy (`active queue`). | `FR-20`, `FR-27`, `NFR-02` |
 | **9** | Customer (Web Client) | — | Xóa các món đã thanh toán khỏi giỏ hàng local (`cart store`); chuyển hướng sang màn hình Xác nhận đơn hàng (`/checkout/success` hoặc trạng thái hoàn tất), hiển thị mã đơn `#id`, chi tiết món, tổng tiền đã trả và hướng dẫn nhận hàng tại quầy. | `FR-23`, `G-01`, `G-02` |
 
@@ -124,7 +127,7 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 | **AF-02** | Thử lại thanh toán sau khi thất bại | Sau EX-09 | Sau khi giao dịch trước bị `PAYMENT_FAILED`, khách hàng chọn lại phương thức thanh toán tại trang Checkout và bấm nút "Thử lại thanh toán". Client sinh `Idempotency-Key` mới và gọi `POST /api/payments` cho cùng `orderId`. | Đơn chuyển từ `PAYMENT_FAILED` sang `PAID`. |
 | **AF-03** | Thanh toán đơn hàng PENDING từ Lịch sử đơn hàng | Khởi đầu từ /orders | Khách hàng mở trang Lịch sử đơn (`UC-08`), thấy đơn cũ ở trạng thái `PENDING` (còn hạn 15 phút), bấm "Thanh toán tiếp". Hệ thống tải lại đơn qua URL `?orderId=...`, bỏ qua bước tạo đơn (Bước 4, 5) và tiến hành thanh toán trực tiếp từ Bước 6. | Đơn `PENDING` được thanh toán thành công sang `PAID`. |
 
-### 6.2. Bảng Luồng ngoại lệ (Exception Flows: EX-01 .. EX-13)
+### 6.2. Bảng Luồng ngoại lệ (Exception Flows: EX-01 .. EX-15)
 
 | Mã luồng | Tình huống ngoại lệ | Điểm phát sinh | Cơ chế phát hiện & Phản hồi hệ thống | Mã lỗi / Trạng thái |
 |---|---|:---:|---|---|
@@ -132,15 +135,17 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 | **EX-02** | Giỏ hàng rỗng hoặc payload sai cấu trúc | Bước 4 | Backend kiểm tra dữ liệu payload: danh sách items rỗng, số lượng <= 0 hoặc > 20, size không thuộc S/M/L, hoặc > 3 topping. Hệ thống từ chối tạo đơn. | `400 Bad Request`<br>(`FR-05`, `FR-15`) |
 | **EX-03** | Món bị ngừng bán trong lúc đặt | Bước 5 | Khi truy vấn DB, backend phát hiện món có `isActive = false` hoặc không tồn tại. Hệ thống từ chối tạo đơn và thông báo tên món đã ngừng bán để khách bỏ khỏi giỏ. | `400 Bad Request` / `404 Not Found`<br>(`FR-01`, `FR-15`) |
 | **EX-04** | Thiếu nguyên liệu khi tạo đơn | Bước 5 | `InventoryService` kiểm tra recipe món, phát hiện nguyên liệu tồn khả dụng không đủ cho số lượng yêu cầu. Backend từ chối tạo đơn, KHÔNG sinh bản ghi `Order`. | `409 Conflict`<br>`INSUFFICIENT_INGREDIENTS`<br>(`FR-17`) |
-| **EX-05** | Thiếu nguyên liệu lúc thanh toán | Bước 7 | Tranh chấp nguyên liệu xảy ra giữa lúc tạo đơn và thanh toán. Khi kiểm tra tồn kho lần 2 trong transaction, nguyên liệu đã bị đơn khác giữ hết. Hệ thống ghi nhận `Payment = FAILED`, chuyển `Order = PAYMENT_FAILED`, không giữ kho. | `409 Conflict`<br>`INSUFFICIENT_INGREDIENTS`<br>(`FR-17`, `FR-22`) |
+| **EX-05** | Thiếu nguyên liệu lúc thanh toán | Bước 7 | Tranh chấp nguyên liệu xảy ra giữa lúc tạo đơn và thanh toán. Khi kiểm tra tồn kho lần 2 trong transaction, nguyên liệu đã bị đơn khác giữ hết. Hệ thống ghi nhận `Payment = FAILED`, chuyển `Order = PAYMENT_FAILED`, không giữ kho. | `402 Payment Required`<br>`PAYMENT_FAILED (failureReason: INSUFFICIENT_INGREDIENTS)`<br>(`FR-17`, `FR-22`) |
 | **EX-06** | Giá client bị can thiệp sửa đổi | Bước 5 | Khách hàng can thiệp devtools sửa giá trên client. Backend hoàn toàn bỏ qua giá client gửi, tính lại tổng tiền từ CSDL. Đơn được tạo với giá chuẩn. Nếu tổng tiền khác biệt so với client hiển thị, client yêu cầu khách xác nhận lại. | Giá CSDL chuẩn<br>(`FR-16`) |
 | **EX-07** | Gửi lại cùng Idempotency-Key và cùng payload | Bước 4, 6 | Do mất mạng tạm thời hoặc client gửi lặp. Backend phát hiện key đã được xử lý thành công với cùng SHA-256 hash payload. Hệ thống bỏ qua bước ghi DB mới, trả về kết quả cũ kèm header `Idempotent-Replayed: true`. | HTTP `200/201`<br>`Idempotent-Replayed: true`<br>(`FR-18`, `FR-21`, `NFR-05`) |
 | **EX-08** | Tái sử dụng Idempotency-Key cho payload khác | Bước 4, 6 | Client dùng lại key cũ nhưng gửi nội dung dòng món hoặc số tiền khác. Backend phát hiện hash payload không khớp với bản ghi đã lưu, lập tức từ chối yêu cầu. | `409 Conflict`<br>`IDEMPOTENCY_KEY_REUSED`<br>(`FR-18`, `FR-21`, `NFR-05`) |
 | **EX-09** | Thanh toán mô phỏng thất bại | Bước 7 | `MockPaymentService` trả kết quả `FAILED` (hoặc gửi payload `mockResult = "FAILED"`). `PaymentsService` ghi `Payment = FAILED`, chuyển `Order = PAYMENT_FAILED`, không giữ kho. Giao diện hiển thị lý do lỗi và nút thử lại (`AF-02`). | `402 Payment Required`<br>`Order: PAYMENT_FAILED`<br>(`FR-20`) |
-| **EX-10** | Tranh chấp nguyên liệu đồng thời | Bước 7 | 10 khách hàng cùng thanh toán đơn chứa nguyên liệu của 5 ly cuối cùng. Khóa `SELECT ... FOR UPDATE` sắp xếp tuần tự: 5 đơn đến trước được giữ kho và `PAID`, 5 đơn đến sau bị từ chối do hết kho khả dụng. Không có hiện tượng trừ âm kho. | `409 Conflict` (5 đơn sau)<br>(`FR-22`, `NFR-05`) |
-| **EX-11** | Đơn PENDING quá hạn 15 phút chưa thanh toán | Bất kỳ lúc nào | Tiến trình nền `OrderExpiryJob` quét các đơn `PENDING` có `createdAt` quá 15 phút và tự động chuyển trạng thái sang `CANCELLED`. Nếu khách bấm thanh toán sau thời điểm này, backend từ chối xử lý. | `409 Conflict`<br>`ORDER_EXPIRED`<br>(`FR-30`) |
-| **EX-12** | Mất kết nối mạng / lỗi server 5xx | Bước 4, 6 | Khách hàng rớt mạng hoặc máy chủ quá tải trả 5xx. Giao diện hiển thị cảnh báo mất mạng và nút thử lại. Nhờ cơ chế `Idempotency-Key` được lưu tại session storage, khách bấm thử lại an toàn tuyệt đối mà không sợ tạo đơn hay tính tiền hai lần. | Client Retry banner<br>(`NFR-11`, `NFR-15`) |
-| **EX-13** | Tắt chế độ thanh toán mô phỏng | Bước 6, 7 | Biến môi trường hệ thống cấu hình `MOCK_PAYMENT_ENABLED=false` trong khi phương thức là `WALLET`/`CARD`. Backend từ chối xử lý và thông báo phương thức thanh toán mô phỏng đang tạm khóa. | `400 Bad Request` / `503 Service Unavailable`<br>(`NFR-11`) |
+| **EX-10** | Tranh chấp nguyên liệu đồng thời | Bước 7 | 10 khách hàng cùng thanh toán đơn chứa nguyên liệu của 5 ly cuối cùng. Khóa `SELECT ... FOR UPDATE` sắp xếp tuần tự: 5 đơn đến trước được giữ kho và `PAID`, 5 đơn đến sau bị từ chối do hết kho khả dụng khi giữ kho. Không có hiện tượng trừ âm kho. | `402 Payment Required`<br>`PAYMENT_FAILED (5 đơn sau)`<br>(`FR-22`, `NFR-05`) |
+| **EX-11** | Đơn PENDING quá hạn 15 phút chưa thanh toán | Bất kỳ lúc nào | Tiến trình nền `OrderExpiryJob` quét các đơn `PENDING` có `createdAt` quá 15 phút và tự động chuyển trạng thái sang `CANCELLED`. Nếu khách bấm thanh toán sau thời điểm này, backend từ chối xử lý. | `409 Conflict`<br>`INVALID_TRANSITION (message: Không thể thanh toán đơn hàng đang ở trạng thái CANCELLED)`<br>(`FR-30`) |
+| **EX-12** | Mất kết nối mạng / lỗi server 5xx | Bước 4, 6 | Khách hàng rớt mạng hoặc máy chủ quá tải trả 5xx. Giao diện hiển thị cảnh báo mất mạng và nút thử lại. Client lưu `Idempotency-Key` cùng nội dung request trong session storage và giữ nguyên khóa khi thử lại; thử lại với cùng khóa và cùng nội dung sẽ nhận lại kết quả đã ghi nhận thay vì tạo đơn hoặc tính tiền lần hai (trong phạm vi cơ chế idempotency của backend, xem `BR-04`). | Client Retry banner<br>(`NFR-11`, `NFR-15`) |
+| **EX-13** | Tắt chế độ thanh toán mô phỏng | Bước 6, 7 | Biến môi trường hệ thống cấu hình `PAYMENT_MOCK_ENABLED=false` (hoặc `NODE_ENV=production` mà biến này khác "true") trong khi phương thức là `WALLET`/`CARD`. Backend từ chối xử lý và thông báo phương thức thanh toán mô phỏng không khả dụng. | `400 Bad Request`<br>`PAYMENT_METHOD_NOT_SUPPORTED`<br>(`NFR-11`) |
+| **EX-14** | Dịch vụ thanh toán mô phỏng lỗi hoặc không phản hồi | Bước 7 (Pha B) | `MockPaymentService.charge()` ném lỗi. Backend không để request treo: coi kết quả là thất bại, chốt `Payment = FAILED`, `Order = PAYMENT_FAILED` ở Pha C. Vì đây là thanh toán mô phỏng, không có tiền thật được ghi nhận nên không cần hoàn tiền hay bù trừ; khách thử lại với Idempotency-Key mới. | `402 Payment Required`<br>`PAYMENT_FAILED (Cổng thanh toán không phản hồi, vui lòng thử lại)`<br>(`FR-20`, `NFR-11`) |
+| **EX-15** | Gửi thanh toán khi đơn đang có giao dịch `PROCESSING` | Bước 6, 7 | Khách bấm thanh toán lần nữa bằng Idempotency-Key khác (hoặc request thứ hai đến khi request đầu chưa chốt). Backend không tạo `Payment` thứ hai; với cùng key thì chờ tối đa khoảng 3 giây để trả lại kết quả đã chốt. Nếu vẫn chưa chốt thì trả lỗi để khách thử lại sau. | `409 Conflict`<br>`PAYMENT_IN_PROGRESS`<br>(`FR-21`) |
 
 ---
 
@@ -165,10 +170,12 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 - **Giai đoạn 2 (Lúc thanh toán - `POST /api/payments`):** Hệ thống khóa dòng đơn hàng `SELECT ... FOR UPDATE`, kiểm tra lại tồn kho khả dụng lần 2. Nếu đủ, thực hiện giữ chỗ nguyên tử (`InventoryReservation = HELD`) đồng thời với việc tạo `Payment = SUCCESS` và đổi `Order = PAID`. Nếu thiếu, từ chối thanh toán và chuyển `Order = PAYMENT_FAILED` (`FR-17`, `FR-22`).
 
 ### BR-04: Quy tắc an toàn Idempotency cho Mutations (Mutation Idempotency Rule)
-- Mọi mutation tạo đơn (`POST /api/orders`) và thanh toán (`POST /api/payments`) bắt buộc phải gửi header `Idempotency-Key` chuẩn định dạng UUIDv4.
+- Client (Next.js) luôn sinh `Idempotency-Key` dạng UUIDv4 cho mỗi mutation tạo đơn (`POST /api/orders`) và thanh toán (`POST /api/payments`).
+- Phía Backend hiện chỉ kiểm tra độ dài, không bắt buộc định dạng UUIDv4: tạo đơn chấp nhận khóa từ 1 đến 128 ký tự và cho phép bỏ qua header (khi đó không có bảo vệ chống trùng); thanh toán bắt buộc có khóa (qua header hoặc body), nếu thiếu trả `400 IDEMPOTENCY_KEY_REQUIRED`.
 - Bản ghi idempotency lưu trữ bộ ba: `(userId, idempotencyKey, requestHash)`.
 - **Replay:** Gửi lại cùng key + cùng request hash $\rightarrow$ Trả về kết quả cũ đã lưu, kèm header `Idempotent-Replayed: true`.
 - **Conflict:** Gửi lại cùng key + khác request hash $\rightarrow$ Từ chối ngay lập tức với HTTP `409 Conflict` (`ORDER_IDEMPOTENCY_KEY_REUSED` hoặc `PAYMENT_IDEMPOTENCY_KEY_REUSED`) (`FR-18`, `FR-21`, `NFR-05`).
+- Tính duy nhất được bảo vệ ở cả tầng cơ sở dữ liệu: `Payment.idempotencyKey` là unique, và đơn hàng có ràng buộc unique `(userId, creationKey)`, nên hai request song song cùng khóa không thể tạo bản ghi thứ hai.
 
 ### BR-05: Giới hạn thời gian hiệu lực đơn chờ thanh toán (PENDING Order Expiry)
 - Đơn hàng ở trạng thái `PENDING` có thời hạn thanh toán tối đa là **15 phút (900 giây)** kể từ thời điểm tạo (`createdAt`).
@@ -177,6 +184,8 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 
 ### BR-06: Phương thức thanh toán chấp nhận trong MVP (Accepted Payment Methods)
 - Hệ thống MVP chỉ chấp nhận 2 phương thức thanh toán mô phỏng: `WALLET` (Ví điện tử mô phỏng) và `CARD` (Thẻ ngân hàng mô phỏng).
+- Thanh toán chỉ mang tính mô phỏng, không có tiền thật. Tham số `mockResult` (`SUCCESS` hoặc `FAILED`) chỉ phục vụ demo và kiểm thử: nó chỉ có thể ép kết quả thất bại, còn mặc định thanh toán luôn thành công. Khi `NODE_ENV=production`, phương thức `WALLET`/`CARD` chỉ hoạt động nếu `PAYMENT_MOCK_ENABLED=true` (xem `EX-13`).
+- Nếu sau này tích hợp cổng thanh toán thật thì cần bổ sung cơ chế đối soát và hoàn tiền; hạng mục này nằm ngoài phạm vi MVP (`W-07`).
 - Tuyệt đối không chấp nhận tiền mặt tại quầy (Cashless 100%).
 - Hệ thống không hỗ trợ cơ chế tự hoàn tiền (Self-refund) trên giao diện khách hàng (`FR-19`, `W-01`, `W-07`).
 
@@ -226,7 +235,7 @@ Các tiêu chí được viết dưới cấu trúc **Given - When - Then** và 
 - **Mã test:** `TC-FR-22`, `TC-NFR-05`
 - **Given:** Tồn kho nguyên liệu chỉ đủ để pha chế tối đa 5 đơn hàng. Có 10 yêu cầu thanh toán đồng thời cho 10 đơn `PENDING` khác nhau.
 - **When:** 10 yêu cầu thanh toán được gửi tới hệ thống cùng một thời điểm.
-- **Then:** Đúng 5 đơn hàng được thanh toán thành công và chuyển sang `PAID`; 5 đơn còn lại bị từ chối với HTTP `409 Conflict`. Số lượng tồn kho không bao giờ bị âm hoặc bị giữ chỗ vượt mức.
+- **Then:** Đúng 5 đơn hàng được thanh toán thành công và chuyển sang `PAID`; 5 đơn còn lại bị từ chối với HTTP `402 Payment Required` (`PAYMENT_FAILED` do hết kho khi giữ kho). Số lượng tồn kho không bao giờ bị âm hoặc bị giữ chỗ vượt mức.
 
 ### AC-08: Hiển thị đầy đủ thông tin xác nhận sau khi đặt và thanh toán
 - **Mã test:** `TC-FR-23`
@@ -238,7 +247,7 @@ Các tiêu chí được viết dưới cấu trúc **Given - When - Then** và 
 - **Mã test:** `TC-FR-30`
 - **Given:** Đơn hàng `#106` được tạo ở trạng thái `PENDING` và không được thanh toán sau 15 phút.
 - **When:** Tiến trình `OrderExpiryJob` kích hoạt quét đơn quá hạn.
-- **Then:** Đơn hàng `#106` tự động đổi trạng thái sang `CANCELLED`. Mọi nỗ lực thanh toán tiếp theo cho đơn này đều bị từ chối với HTTP `409 Conflict`.
+- **Then:** Đơn hàng `#106` tự động đổi trạng thái sang `CANCELLED`. Mọi nỗ lực thanh toán tiếp theo cho đơn này đều bị từ chối với HTTP `409 Conflict` (`INVALID_TRANSITION`: Không thể thanh toán đơn hàng đang ở trạng thái CANCELLED).
 
 ### AC-10: Hiệu năng phản hồi và khả năng chịu lỗi kết nối mạng
 - **Mã test:** `TC-NFR-02`, `TC-NFR-11`, `TC-NFR-15`
@@ -294,5 +303,8 @@ Qua quá trình kiểm tra chi tiết các file nguồn tại `apps/api` và `ap
 
 ### 10.3. Các điểm cần nhóm xác nhận trước nghiệm thu (Sign-off Items)
 1. **Thời gian hết hạn đơn PENDING:** Nhóm kỹ thuật thống nhất chọn mốc **15 phút (900 giây)** theo cài đặt hiện tại của `OrderExpiryJob` (thay vì 10 hay 30 phút).
-2. **Tần suất cron job hủy đơn:** Tiến trình nền quét đơn quá hạn chạy mỗi 1 phút một lần (`@Cron('*/1 * * * *')`).
+2. **Tần suất cron job hủy đơn:** Tiến trình nền quét đơn quá hạn chạy mỗi 1 phút một lần (`setInterval` 60.000 ms trong `OrderExpiryJob`, không chạy khi `NODE_ENV=test`).
 3. **Ngưỡng đo hiệu năng NFR-02:** Ngưỡng p95 $\le$ 3.0 giây được áp dụng khi chạy bộ test tải 20 CCU trên môi trường demo local/staging.
+
+### 10.4. Giới hạn đã biết của mã nguồn hiện tại
+- **Payment `WALLET`/`CARD` bị kẹt ở `PROCESSING`:** nếu backend dừng đột ngột sau Pha A (đã tạo `Payment = PROCESSING`) và trước Pha C, mã nguồn đã đối chiếu không có cơ chế tự phục hồi cho thanh toán mô phỏng (việc đối soát chỉ có cho VNPAY, ngoài phạm vi). Hậu quả: thanh toán lại trả `409 PAYMENT_IN_PROGRESS`, hủy đơn trả `409 PAYMENT_IN_PROGRESS`, và `OrderExpiryJob` bỏ qua đơn đó. Đề xuất cho giai đoạn cài đặt: đặt thời hạn cho `Payment PROCESSING` của thanh toán mô phỏng rồi chuyển sang `FAILED`. Đây là việc sửa mã nguồn, không thuộc Task 1.3.

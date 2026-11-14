@@ -1,0 +1,161 @@
+@startuml BrewLite_A2_Sequence_Checkout
+autonumber
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign center
+
+title BrewLite A2 — Sequence Diagram: Đặt và Thanh toán Đơn hàng (UC-06 & UC-07)
+
+actor "Customer" as Customer
+participant "Next.js UI\n(apps/web)" as UI
+participant "NestJS API\n(apps/api)" as API
+database "PostgreSQL\n(Prisma ORM)" as DB
+participant "Payment Service\n(MockPaymentService)\n<<Internal Component>>" as PaySvc
+
+note over PaySvc
+  Thành phần mô phỏng nội bộ trong NestJS
+  (PAYMENT_MOCK_ENABLED=true), không phải cổng ngoài.
+end note
+
+== Giai đoạn 1: Đặt đơn hàng (UC-06 — POST /api/orders) ==
+
+Customer -> UI : Chọn phương thức (WALLET / CARD)\nvà bấm "Đặt đơn & Thanh toán"
+activate UI
+UI -> UI : Khóa nút bấm (chống double-click)\nSinh orderIdempotencyKey (UUIDv4)
+
+UI -> API : POST /api/orders\nHeaders: Authorization: Bearer <JWT>, Idempotency-Key\nBody: { items: [{ productId, size, quantity, toppingIds, note }] }
+activate API
+
+API -> API : JwtAuthGuard kiểm tra JWT\nValidationPipe kiểm tra CreateOrderDto
+
+alt JWT không hợp lệ hoặc hết hạn (401)
+  API --> UI : 401 Unauthorized (UNAUTHORIZED)
+  UI --> Customer : Xóa phiên, giữ giỏ hàng & chuyển hướng /login
+else JWT và DTO hợp lệ
+  API -> DB : Tìm đơn theo (userId, creationKey)
+  activate DB
+  DB --> API : Kết quả tra cứu creationKey
+  deactivate DB
+
+  alt Trùng Idempotency-Key khi tạo đơn
+    alt creationRequestHash trùng khớp (cùng payload)
+      API --> UI : 201 Created (Trả về đơn hàng PENDING đã tạo trước đó)
+    else creationRequestHash khác (payload bị sửa)
+      API --> UI : 409 Conflict (ORDER_IDEMPOTENCY_KEY_REUSED)
+      UI --> Customer : Hiển thị lỗi xung đột yêu cầu tạo đơn
+    end
+  else Yêu cầu tạo đơn mới
+    API -> DB : BEGIN TRANSACTION (RepeatableRead + Retry)
+    activate DB
+    API -> DB : Truy vấn Product, Topping, ProductRecipe, Ingredient
+    DB --> API : Dữ liệu giá niêm yết & định mức công thức
+    API -> API : PricingService.calculate()\n(Bỏ qua giá client, tự tính unitPrice, subtotal, total)
+    API -> API : InventoryService.assertAvailable()\n(Kiểm tra nguyên liệu khả dụng lần 1 — CHƯA giữ kho)
+
+    alt Món ngừng bán / Thiếu nguyên liệu khả dụng
+      API -> DB : ROLLBACK TRANSACTION
+      deactivate DB
+      API --> UI : 409 Conflict (INSUFFICIENT_INGREDIENTS) / 404
+      UI --> Customer : Thông báo món/nguyên liệu không đủ, giữ nguyên giỏ
+    else Đủ nguyên liệu khả dụng
+      API -> DB : INSERT Order (status = PENDING) & OrderItem (snapshot)
+      DB --> API : Order #id (status = PENDING)
+      API -> DB : COMMIT TRANSACTION
+      deactivate DB
+      API --> UI : 201 Created { id, code: "#id", status: "PENDING", total }
+    end
+  end
+end
+deactivate API
+
+== Giai đoạn 2: Thanh toán Ví/Thẻ mô phỏng & Giữ kho (UC-07 — POST /api/payments) ==
+
+opt Đơn hàng #id đã được tạo thành công ở trạng thái PENDING
+  UI -> UI : Sinh paymentIdempotencyKey (UUIDv4)\nLưu session checkout vào sessionStorage
+  UI -> API : POST /api/payments\nHeaders: Authorization: Bearer <JWT>, Idempotency-Key\nBody: { orderId, method: "WALLET" | "CARD", mockResult }
+  activate API
+
+  API -> DB : Tìm Payment theo idempotencyKey
+  activate DB
+  DB --> API : Kết quả tra cứu idempotencyKey
+  deactivate DB
+
+  alt Trùng Idempotency-Key khi thanh toán (Idempotency Replay / Conflict)
+    alt requestHash trùng khớp (gửi lại cùng yêu cầu)
+      API --> UI : 201 Created / 402 (Header: Idempotent-Replayed: true)\nTrả về kết quả giao dịch đã ghi nhận
+      UI --> Customer : Hiển thị kết quả giao dịch ban đầu (không trừ tiền/kho lặp)
+    else requestHash khác (tái dùng key cho nội dung khác)
+      API --> UI : 409 Conflict (IDEMPOTENCY_KEY_REUSED)
+      UI --> Customer : Hiển thị lỗi xung đột khóa giao dịch
+    end
+  else Giao dịch thanh toán mới
+    API -> DB : BEGIN TRANSACTION (Claim Payment)
+    activate DB
+    API -> DB : SELECT id FROM "Order" WHERE id = :orderId FOR UPDATE\n(lockOrder — khóa dòng chống tranh chấp đồng thời)
+    DB --> API : Khóa thành công bản ghi Order
+    API -> API : Xác minh quyền sở hữu (order.userId == userId)\nvà trạng thái (PENDING hoặc PAYMENT_FAILED)
+    alt Đơn đã có Payment đang PROCESSING (request khác chưa chốt)
+      API -> DB : ROLLBACK TRANSACTION
+      deactivate DB
+      API --> UI : 409 Conflict (PAYMENT_IN_PROGRESS)
+      UI --> Customer : Thông báo đơn đang được xử lý, vui lòng thử lại sau
+    else Chưa có giao dịch đang xử lý
+    API -> DB : INSERT Payment (status = PROCESSING, amount = order.total)
+    DB --> API : Payment #payId (PROCESSING)
+    API -> DB : COMMIT TRANSACTION
+    deactivate DB
+
+    note over API
+      Giới hạn đã biết: nếu API dừng giữa Pha A và Pha C thì Payment
+      kẹt ở PROCESSING, chưa có cơ chế tự phục hồi (xem use-case mục 10.4)
+    end note
+    API -> PaySvc : charge({ amount: order.total, method, mockResult })
+    activate PaySvc
+    alt Dịch vụ phản hồi
+      PaySvc --> API : ChargeResult { success, providerRef | failureReason }
+    else Dịch vụ lỗi / không phản hồi
+      PaySvc -->x API : Lỗi hoặc không phản hồi
+      API -> API : Coi như ChargeResult { success = false,\nfailureReason = "Cổng thanh toán không phản hồi" }\n(mô phỏng: không có tiền thật cần hoàn)
+    end
+    deactivate PaySvc
+
+    API -> DB : BEGIN TRANSACTION (Finalize Payment & Hold Inventory)
+    activate DB
+    API -> DB : SELECT id FROM "Order" WHERE id = :orderId FOR UPDATE
+
+    alt Thanh toán SUCCESS (ChargeResult.success == true)
+      API -> DB : InventoryService.hold(orderId)\n(Kiểm tra tồn kho lần 2 + Optimistic Lock version)
+      alt Đủ nguyên liệu để giữ kho
+        DB --> API : INSERT InventoryReservation (HELD) & InventoryMovement (HOLD)
+        API -> DB : UPDATE Payment SET status = 'SUCCESS', providerRef = ...
+        API -> DB : UPDATE Order SET status = 'PAID'
+        API -> DB : COMMIT TRANSACTION
+        deactivate DB
+        API --> UI : 201 Created { payment: SUCCESS, order: PAID }
+        UI -> UI : Xóa giỏ hàng & dọn session checkout
+        UI --> Customer : Hiển thị màn hình Xác nhận thành công (#id, PAID, tổng tiền)
+      else Hết nguyên liệu lúc thanh toán (Đặt đồng thời vượt tồn)
+        API -> DB : UPDATE Payment SET status = 'FAILED', failureReason = 'INSUFFICIENT_INGREDIENTS'
+        API -> DB : UPDATE Order SET status = 'PAYMENT_FAILED'
+        API -> DB : COMMIT TRANSACTION
+        deactivate DB
+        API --> UI : 402 Payment Required (PAYMENT_FAILED - Thiếu nguyên liệu)
+        UI --> Customer : Thông báo không đủ nguyên liệu để thanh toán đơn
+      end
+    else Thanh toán FAILED (mockResult == "FAILED" hoặc dịch vụ lỗi)
+      API -> DB : UPDATE Payment SET status = 'FAILED', failureReason = ...
+      API -> DB : UPDATE Order SET status = 'PAYMENT_FAILED'
+      API -> DB : COMMIT TRANSACTION
+      deactivate DB
+      API --> UI : 402 Payment Required (PAYMENT_FAILED)
+      UI --> Customer : Thông báo thanh toán thất bại & hiển thị nút "Thử lại thanh toán"
+    end
+    end
+  end
+  deactivate API
+end
+deactivate UI
+
+@enduml
