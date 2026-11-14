@@ -107,6 +107,10 @@ opt Đơn hàng #id đã được tạo thành công ở trạng thái PENDING
     API -> DB : COMMIT TRANSACTION
     deactivate DB
 
+    note over API
+      Giới hạn đã biết: nếu API dừng giữa Pha A và Pha C thì Payment
+      kẹt ở PROCESSING, chưa có cơ chế tự phục hồi (xem use-case mục 10.4)
+    end note
     API -> PaySvc : charge({ amount: order.total, method, mockResult })
     activate PaySvc
     alt Dịch vụ phản hồi
