@@ -174,6 +174,7 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 - Bản ghi idempotency lưu trữ bộ ba: `(userId, idempotencyKey, requestHash)`.
 - **Replay:** Gửi lại cùng key + cùng request hash $\rightarrow$ Trả về kết quả cũ đã lưu, kèm header `Idempotent-Replayed: true`.
 - **Conflict:** Gửi lại cùng key + khác request hash $\rightarrow$ Từ chối ngay lập tức với HTTP `409 Conflict` (`ORDER_IDEMPOTENCY_KEY_REUSED` hoặc `PAYMENT_IDEMPOTENCY_KEY_REUSED`) (`FR-18`, `FR-21`, `NFR-05`).
+- Tính duy nhất được bảo vệ ở cả tầng cơ sở dữ liệu: `Payment.idempotencyKey` là unique, và đơn hàng có ràng buộc unique `(userId, creationKey)`, nên hai request song song cùng khóa không thể tạo bản ghi thứ hai.
 
 ### BR-05: Giới hạn thời gian hiệu lực đơn chờ thanh toán (PENDING Order Expiry)
 - Đơn hàng ở trạng thái `PENDING` có thời hạn thanh toán tối đa là **15 phút (900 giây)** kể từ thời điểm tạo (`createdAt`).
@@ -182,6 +183,8 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 
 ### BR-06: Phương thức thanh toán chấp nhận trong MVP (Accepted Payment Methods)
 - Hệ thống MVP chỉ chấp nhận 2 phương thức thanh toán mô phỏng: `WALLET` (Ví điện tử mô phỏng) và `CARD` (Thẻ ngân hàng mô phỏng).
+- Thanh toán chỉ mang tính mô phỏng, không có tiền thật. Tham số `mockResult` (`SUCCESS` hoặc `FAILED`) chỉ phục vụ demo và kiểm thử: nó chỉ có thể ép kết quả thất bại, còn mặc định thanh toán luôn thành công. Khi `NODE_ENV=production`, phương thức `WALLET`/`CARD` chỉ hoạt động nếu `PAYMENT_MOCK_ENABLED=true` (xem `EX-13`).
+- Nếu sau này tích hợp cổng thanh toán thật thì cần bổ sung cơ chế đối soát và hoàn tiền; hạng mục này nằm ngoài phạm vi MVP (`W-07`).
 - Tuyệt đối không chấp nhận tiền mặt tại quầy (Cashless 100%).
 - Hệ thống không hỗ trợ cơ chế tự hoàn tiền (Self-refund) trên giao diện khách hàng (`FR-19`, `W-01`, `W-07`).
 
@@ -299,5 +302,8 @@ Qua quá trình kiểm tra chi tiết các file nguồn tại `apps/api` và `ap
 
 ### 10.3. Các điểm cần nhóm xác nhận trước nghiệm thu (Sign-off Items)
 1. **Thời gian hết hạn đơn PENDING:** Nhóm kỹ thuật thống nhất chọn mốc **15 phút (900 giây)** theo cài đặt hiện tại của `OrderExpiryJob` (thay vì 10 hay 30 phút).
-2. **Tần suất cron job hủy đơn:** Tiến trình nền quét đơn quá hạn chạy mỗi 1 phút một lần (`@Cron('*/1 * * * *')`).
+2. **Tần suất cron job hủy đơn:** Tiến trình nền quét đơn quá hạn chạy mỗi 1 phút một lần (`setInterval` 60.000 ms trong `OrderExpiryJob`, không chạy khi `NODE_ENV=test`).
 3. **Ngưỡng đo hiệu năng NFR-02:** Ngưỡng p95 $\le$ 3.0 giây được áp dụng khi chạy bộ test tải 20 CCU trên môi trường demo local/staging.
+
+### 10.4. Giới hạn đã biết của mã nguồn hiện tại
+- **Payment `WALLET`/`CARD` bị kẹt ở `PROCESSING`:** nếu backend dừng đột ngột sau Pha A (đã tạo `Payment = PROCESSING`) và trước Pha C, mã nguồn đã đối chiếu không có cơ chế tự phục hồi cho thanh toán mô phỏng (việc đối soát chỉ có cho VNPAY, ngoài phạm vi). Hậu quả: thanh toán lại trả `409 PAYMENT_IN_PROGRESS`, hủy đơn trả `409 PAYMENT_IN_PROGRESS`, và `OrderExpiryJob` bỏ qua đơn đó. Đề xuất cho giai đoạn cài đặt: đặt thời hạn cho `Payment PROCESSING` của thanh toán mô phỏng rồi chuyển sang `FAILED`. Đây là việc sửa mã nguồn, không thuộc Task 1.3.

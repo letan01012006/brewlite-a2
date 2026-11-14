@@ -10,7 +10,7 @@
 - [Sơ đồ Use-Case tổng quát (Task 1.2)](./diagrams/use-case-overview.svg) ([Nguồn PUML](./diagrams/use-case-overview.puml))
 - [Sơ đồ Use-Case Đặt và thanh toán (Task 1.3)](./diagrams/use-case-checkout.svg) ([Nguồn PUML](./diagrams/use-case-checkout.puml))
 - [Sơ đồ tuần tự Đặt và thanh toán đơn hàng (Task 2.2)](./diagrams/sequence-checkout.svg) ([Nguồn PUML](./diagrams/sequence-checkout.puml))
-- [Sơ đồ triển khai hệ thống Local, CI/CD & Production (Task 3.2)](./diagrams/deployment-production.svg) ([Nguồn PUML](./diagrams/deployment-production.puml)) *(Ghi chú: Sơ đồ Task 3.2 nằm ở nhánh `a2/task-3.2-deployment-diagram` cho đến khi gộp)*
+- [Sơ đồ triển khai hệ thống Local, CI/CD & Production (Task 3.2)](./diagrams/deployment-production.svg) ([Nguồn PUML](./diagrams/deployment-production.puml))
 
 ---
 
@@ -68,9 +68,9 @@ Ma trận truy vết (RTM) này thiết lập mối liên kết hai chiều (bid
 | **NFR-01** | Hiệu năng | Đọc menu p95 $\le$ 1.5s với 30 CCU, lỗi < 1% | UC-01, UC-02 | K6 / autocannon tải `GET /api/products` | AT-07<br>`TC-NFR-01` | Chờ đo nghiệm thu |
 | **NFR-02** | Hiệu năng | Đặt và thanh toán mô phỏng p95 $\le$ 3.0s với 20 CCU | **UC-06, UC-07**<br>[sequence-checkout.puml](./diagrams/sequence-checkout.puml) | K6 tải `POST /api/orders`, `POST /api/payments` | AT-01<br>`TC-NFR-02` | **Thiết kế Task 2.2** |
 | **NFR-03** | Bảo mật | 100% chặn 401/403 khi thiếu token, token hết hạn, sai vai trò | UC-04, **UC-06**, **UC-07**, UC-10..12<br>[sequence-checkout.puml](./diagrams/sequence-checkout.puml) | Unit/Integration tests cho `JwtAuthGuard`, `RolesGuard` | AT-02<br>`TC-NFR-03` | **Thiết kế Task 2.2** |
-| **NFR-04** | Bảo mật | Production chạy HTTPS; secret lấy từ biến môi trường | Toàn hệ thống<br>[deployment-production.puml](./diagrams/deployment-production.puml) | Docker Compose, Caddy/Nginx reverse proxy, CI secret scanner | AT-08<br>`TC-NFR-04` | Task 3 (Triển khai) |
+| **NFR-04** | Bảo mật | Production chạy HTTPS; secret lấy từ biến môi trường | Toàn hệ thống<br>[deployment-production.puml](./diagrams/deployment-production.puml) | Docker Compose, Caddy/Nginx reverse proxy (đề xuất), GitHub Actions Secrets (dự kiến); chưa có công cụ quét secret | AT-08<br>`TC-NFR-04` | Task 3 (Triển khai) |
 | **NFR-05** | Tin cậy | Toàn vẹn giao dịch: không đơn trùng, không tồn kho âm | **UC-06, UC-07**<br>[sequence-checkout.puml](./diagrams/sequence-checkout.puml) | Prisma transaction, service-level idempotency check, locking | AT-03, AT-04<br>`TC-NFR-05` | **Thiết kế Task 2.2** |
-| **NFR-06** | Khả dụng | Tỷ lệ sẵn sàng /api/health $\ge$ 99% trong 24 giờ | Toàn hệ thống<br>[deployment-production.puml](./diagrams/deployment-production.puml) | `GET /api/health`, uptime robot monitor | AT-08<br>`TC-NFR-06` | Task 3 (Triển khai) |
+| **NFR-06** | Khả dụng | Tỷ lệ sẵn sàng /api/health $\ge$ 99% trong 24 giờ | Toàn hệ thống<br>[deployment-production.puml](./diagrams/deployment-production.puml) | `GET /api/health`; giám sát uptime (dự kiến, chưa cấu hình) | AT-08<br>`TC-NFR-06` | Task 3 (Triển khai) |
 | **NFR-07** | Khả dụng | Giao diện mobile-first (360x800, 768x1024, 1280x800 px) | Toàn bộ web UI | Tailwind CSS responsive classes, Playwright viewport tests | AT-07<br>`TC-NFR-07` | Sẵn sàng test |
 | **NFR-08** | Khả dụng | Web App Manifest hợp lệ, có thể cài đặt PWA | Toàn bộ web UI | `apps/web/public/manifest.json`, Lighthouse PWA audit | AT-07<br>`TC-NFR-08` | Sprint 2 (Task 5) |
 | **NFR-09** | Triển khai | Tái triển khai dễ dàng qua Docker Compose và migration | Toàn hệ thống<br>[deployment-production.puml](./diagrams/deployment-production.puml) | `docker-compose.yml`, `prisma migrate deploy` | AT-08<br>`TC-NFR-09` | Task 3 (Triển khai) |
