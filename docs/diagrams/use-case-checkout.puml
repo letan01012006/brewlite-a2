@@ -49,8 +49,13 @@ UC07 ..> STOCK : <<include>>
 UC07 ..> RESULT : <<include>>
 
 ' Quan hệ <<extend>> (tách hướng rõ ràng để không đè nhãn)
-UC05 .right.> UC06 : <<extend>>\n[Chưa đăng nhập]
+UC05 .right.> UC06 : <<extend>>\n[Chưa đăng nhập / token hết hạn]
 EXPIRE .left.> UC06 : <<extend>>\n[Quá hạn 15 phút]
-RETRY .up.> UC07 : <<extend>>\n[Thanh toán FAILED]
+RETRY .up.> UC07 : <<extend>>\n[Thanh toán FAILED hoặc\ndịch vụ lỗi / không phản hồi]
+
+note bottom of EXPIRE
+  Do OrderExpiryJob (timer nền, 60 giây/lần)
+  kích hoạt, không phải thao tác của Customer
+end note
 
 @enduml

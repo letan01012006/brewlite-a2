@@ -96,6 +96,12 @@ opt Đơn hàng #id đã được tạo thành công ở trạng thái PENDING
     API -> DB : SELECT id FROM "Order" WHERE id = :orderId FOR UPDATE\n(lockOrder — khóa dòng chống tranh chấp đồng thời)
     DB --> API : Khóa thành công bản ghi Order
     API -> API : Xác minh quyền sở hữu (order.userId == userId)\nvà trạng thái (PENDING hoặc PAYMENT_FAILED)
+    alt Đơn đã có Payment đang PROCESSING (request khác chưa chốt)
+      API -> DB : ROLLBACK TRANSACTION
+      deactivate DB
+      API --> UI : 409 Conflict (PAYMENT_IN_PROGRESS)
+      UI --> Customer : Thông báo đơn đang được xử lý, vui lòng thử lại sau
+    else Chưa có giao dịch đang xử lý
     API -> DB : INSERT Payment (status = PROCESSING, amount = order.total)
     DB --> API : Payment #payId (PROCESSING)
     API -> DB : COMMIT TRANSACTION
@@ -103,7 +109,12 @@ opt Đơn hàng #id đã được tạo thành công ở trạng thái PENDING
 
     API -> PaySvc : charge({ amount: order.total, method, mockResult })
     activate PaySvc
-    PaySvc --> API : ChargeResult { success, providerRef | failureReason }
+    alt Dịch vụ phản hồi
+      PaySvc --> API : ChargeResult { success, providerRef | failureReason }
+    else Dịch vụ lỗi / không phản hồi
+      PaySvc -->x API : Lỗi hoặc không phản hồi
+      API -> API : Coi như ChargeResult { success = false,\nfailureReason = "Cổng thanh toán không phản hồi" }\n(mô phỏng: không có tiền thật cần hoàn)
+    end
     deactivate PaySvc
 
     API -> DB : BEGIN TRANSACTION (Finalize Payment & Hold Inventory)
@@ -129,13 +140,14 @@ opt Đơn hàng #id đã được tạo thành công ở trạng thái PENDING
         API --> UI : 402 Payment Required (PAYMENT_FAILED - Thiếu nguyên liệu)
         UI --> Customer : Thông báo không đủ nguyên liệu để thanh toán đơn
       end
-    else Thanh toán FAILED (mockResult == "FAILED")
+    else Thanh toán FAILED (mockResult == "FAILED" hoặc dịch vụ lỗi)
       API -> DB : UPDATE Payment SET status = 'FAILED', failureReason = ...
       API -> DB : UPDATE Order SET status = 'PAYMENT_FAILED'
       API -> DB : COMMIT TRANSACTION
       deactivate DB
       API --> UI : 402 Payment Required (PAYMENT_FAILED)
       UI --> Customer : Thông báo thanh toán thất bại & hiển thị nút "Thử lại thanh toán"
+    end
     end
   end
   deactivate API
