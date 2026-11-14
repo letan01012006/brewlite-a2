@@ -170,7 +170,8 @@ Luồng chuẩn khi Khách hàng thực hiện đặt món và thanh toán thàn
 - **Giai đoạn 2 (Lúc thanh toán - `POST /api/payments`):** Hệ thống khóa dòng đơn hàng `SELECT ... FOR UPDATE`, kiểm tra lại tồn kho khả dụng lần 2. Nếu đủ, thực hiện giữ chỗ nguyên tử (`InventoryReservation = HELD`) đồng thời với việc tạo `Payment = SUCCESS` và đổi `Order = PAID`. Nếu thiếu, từ chối thanh toán và chuyển `Order = PAYMENT_FAILED` (`FR-17`, `FR-22`).
 
 ### BR-04: Quy tắc an toàn Idempotency cho Mutations (Mutation Idempotency Rule)
-- Mọi mutation tạo đơn (`POST /api/orders`) và thanh toán (`POST /api/payments`) bắt buộc phải gửi header `Idempotency-Key` chuẩn định dạng UUIDv4.
+- Client (Next.js) luôn sinh `Idempotency-Key` dạng UUIDv4 cho mỗi mutation tạo đơn (`POST /api/orders`) và thanh toán (`POST /api/payments`).
+- Phía Backend hiện chỉ kiểm tra độ dài, không bắt buộc định dạng UUIDv4: tạo đơn chấp nhận khóa từ 1 đến 128 ký tự và cho phép bỏ qua header (khi đó không có bảo vệ chống trùng); thanh toán bắt buộc có khóa (qua header hoặc body), nếu thiếu trả `400 IDEMPOTENCY_KEY_REQUIRED`.
 - Bản ghi idempotency lưu trữ bộ ba: `(userId, idempotencyKey, requestHash)`.
 - **Replay:** Gửi lại cùng key + cùng request hash $\rightarrow$ Trả về kết quả cũ đã lưu, kèm header `Idempotent-Replayed: true`.
 - **Conflict:** Gửi lại cùng key + khác request hash $\rightarrow$ Từ chối ngay lập tức với HTTP `409 Conflict` (`ORDER_IDEMPOTENCY_KEY_REUSED` hoặc `PAYMENT_IDEMPOTENCY_KEY_REUSED`) (`FR-18`, `FR-21`, `NFR-05`).
