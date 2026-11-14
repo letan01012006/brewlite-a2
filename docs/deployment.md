@@ -69,11 +69,35 @@ Bảng đối chiếu giữa các thành phần triển khai trên sơ đồ [`d
 | **Frontend Container** | Next.js 16 Standalone Web Application (Port 3000) | `apps/web/`<br>`apps/web/Dockerfile`<br>`apps/web/next.config.ts` | `PORT=3000`<br>`HOSTNAME=0.0.0.0`<br>`BACKEND_API_URL` (Build-arg đóng cứng) | Phục vụ khách hàng và barista. Proxy `/api/*` tới backend theo `BACKEND_API_URL`. |
 | **Backend Container** | NestJS 12 Modular Monolith API Server (Port 4000) | `apps/api/`<br>`apps/api/Dockerfile`<br>`apps/api/docker-entrypoint.sh` | `PORT=4000`<br>`DATABASE_URL`<br>`JWT_SECRET`<br>`JWT_EXPIRES_IN`<br>`OTP_HASH_SECRET`<br>`PAYMENT_MOCK_ENABLED=true`<br>`TRUST_PROXY` | Global prefix `/api`. Tự động chạy `prisma migrate deploy` tại entrypoint. Bắt buộc `PAYMENT_MOCK_ENABLED=true` để bật thanh toán Ví/Thẻ mô phỏng tại Production. |
 | **Database Service** | PostgreSQL 16 Relational Database (Port 5432) | `docker-compose.yml` (service `db`) | `POSTGRES_USER`<br>`POSTGRES_PASSWORD`<br>`POSTGRES_DB` | Mạng nội bộ riêng biệt (Private Network), không mở cổng Public IP ra ngoài Internet. Local dùng volume `brewlite_pgdata`; Production dùng persistent volume do nền tảng quản lý. |
-| **Edge / Reverse Proxy** | Reverse Proxy & SSL/TLS Termination (Port 80/443) | Cấu hình nền tảng Production (Dự kiến) | Chứng chỉ SSL/TLS tự động (Let's Encrypt / Managed SSL) | Chấm dứt HTTPS tại cổng 443, chuyển toàn bộ request của domain tới Frontend (:3000). Frontend tự proxy `/api/*` sang Backend (:4000) qua Next.js rewrite (`BACKEND_API_URL`). |
+| **Edge / Reverse Proxy** | Reverse Proxy & SSL/TLS Termination (Port 80/443) | Cấu hình Caddy hoặc Nginx trên VPS (đề xuất, chưa triển khai) | Chứng chỉ SSL/TLS tự động (Let's Encrypt / Managed SSL) | Chấm dứt HTTPS tại cổng 443, chuyển toàn bộ request của domain tới Frontend (:3000). Frontend tự proxy `/api/*` sang Backend (:4000) qua Next.js rewrite (`BACKEND_API_URL`). |
 | **Container Registry** | GitHub Packages / GHCR (`ghcr.io`) | `.github/workflows/cd.yml` | `GITHUB_TOKEN` (`github.token`) | Lưu trữ các Docker image bất biến với tag `sha-<7 ký tự>` và `latest` (`ghcr.io/<owner>/brewlite-a2/frontend`, `backend`). |
-| **CI/CD Automation** | GitHub Actions Workflows | `.github/workflows/ci.yml`<br>`.github/workflows/cd.yml` | `[TÊN SECRET DEPLOY (chưa cấu hình)]` | CI kiểm tra chất lượng (lint, test, build, compose smoke test); CD build & push image lên GHCR sau khi CI thành công trên `main`. |
+| **CI/CD Automation** | GitHub Actions Workflows | `.github/workflows/ci.yml`<br>`.github/workflows/cd.yml` | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH` (đề xuất, chưa tạo trên GitHub) | CI kiểm tra chất lượng (lint, test, build, compose smoke test); CD build & push image lên GHCR sau khi CI thành công trên `main`. |
 
 > **Mô tả kiến trúc/ADR:** CẦN THÊM THÔNG TIN – thuộc Task 3.1, chưa có.
+
+### Phương án production đề xuất
+
+Nhóm chưa xác nhận nền tảng production. Sơ đồ và tài liệu này dùng phương án đề xuất sau để các tài liệu thống nhất với nhau; khi nhóm chọn nền tảng khác, cập nhật lại sơ đồ, bảng trên và mục Task 5.3.
+
+- **Hạ tầng:** một máy chủ Linux (VPS) chạy Docker Compose với ba service `frontend`, `backend`, `db`, cùng một mạng Docker. Cách này giữ nguyên hostname `backend` mà image frontend đã đóng cứng qua `BACKEND_API_URL=http://backend:4000/api`, nên không cần build lại image.
+- **Cổng mở ra Internet:** chỉ 80/443 của Edge (Caddy hoặc Nginx). Cổng 3000, 4000 và 5432 không mở public; PostgreSQL chỉ truy cập được trong mạng Docker.
+- **HTTPS:** Edge chấm dứt TLS bằng chứng chỉ tự động (Let's Encrypt), chuyển lưu lượng tới frontend :3000. Frontend tự proxy `/api/*` sang backend.
+- **Dữ liệu:** PostgreSQL dùng Docker volume trên VPS; cần sao lưu định kỳ và sao lưu trước mỗi lần triển khai có migration.
+
+### Quản lý bí mật và quyền truy cập (đề xuất)
+
+Chỉ ghi tên biến; giá trị không đưa vào Git hay tài liệu.
+
+| Nhóm | Tên | Nơi lưu | Ai được truy cập |
+|---|---|---|---|
+| Bí mật ứng dụng | `DATABASE_URL`, `JWT_SECRET`, `OTP_HASH_SECRET`, `POSTGRES_PASSWORD` | File `.env` trên VPS, không commit; quyền đọc chỉ cho tài khoản chạy Docker | Người vận hành VPS |
+| Cấu hình ứng dụng | `PAYMENT_MOCK_ENABLED=true`, `TRUST_PROXY`, `PORT` | File `.env` trên VPS | Người vận hành VPS |
+| Bí mật CI/CD | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH` | GitHub Actions Secrets của repository | Chủ repository và người có quyền quản trị |
+| Đăng nhập GHCR | `GITHUB_TOKEN` | Do GitHub Actions cấp cho mỗi lần chạy | Workflow `cd.yml` |
+
+Khóa SSH dùng cho deploy nên là khóa riêng chỉ cho việc deploy, không dùng lại khóa cá nhân. Không in giá trị bí mật ra log của workflow.
+
+> **Chưa có minh chứng triển khai thực tế:** chưa có URL production, kết quả health check hay kết quả truy cập frontend. Các mục này chỉ bổ sung sau khi triển khai (Task 5.3).
 
 ---
 

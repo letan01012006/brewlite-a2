@@ -23,11 +23,11 @@ node "GitHub (CI/CD và Container Registry)" as GH {
     artifact "…/backend\ntag: latest, sha-<7 ký tự>" as ImgApi
     artifact "…/frontend\ntag: latest, sha-<7 ký tự>" as ImgWeb
   }
-  artifact "GITHUB_TOKEN (github.token)\n+ [TÊN SECRET DEPLOY – chưa cấu hình]" as Tok
+  artifact "GITHUB_TOKEN (github.token)\nSecrets deploy (đề xuất, chỉ ghi tên):\nDEPLOY_HOST · DEPLOY_USER · DEPLOY_SSH_KEY · DEPLOY_PATH" as Tok
 }
 
-node "Production  ([NỀN TẢNG PRODUCTION] – chưa xác định)" as Prod {
-  node "Edge / Reverse Proxy (dự kiến)\nHTTPS :443 · [DOMAIN PRODUCTION]" as Edge {
+node "Production (phương án đề xuất: 1 VPS Linux + Docker Compose)" as Prod {
+  node "Edge / Reverse Proxy (Caddy hoặc Nginx)\nHTTPS :443 · <domain production>" as Edge {
     component "TLS termination\nchuyển toàn bộ lưu lượng tới frontend :3000" as Router
   }
   node "Container: Frontend" as FE {
@@ -39,7 +39,7 @@ node "Production  ([NỀN TẢNG PRODUCTION] – chưa xác định)" as Prod {
   }
   node "Database (mạng riêng, không có IP public)" as DBN {
     database "PostgreSQL 16 :5432" as Db
-    storage "Persistent volume\ndo [NỀN TẢNG PRODUCTION] quản lý" as Vol
+    storage "Docker volume trên VPS\n(cần sao lưu định kỳ)" as Vol
   }
   note right of Web
     BACKEND_API_URL=http://backend:4000/api
@@ -72,6 +72,7 @@ CD --> ImgWeb : docker push
 Tok ..> CD
 ImgWeb ..> Web : docker pull
 ImgApi ..> Api : docker pull
+CD ..> Prod : SSH + docker compose pull/up\ntheo tag sha-<7> (kế hoạch)
 CD ..> Health : health check sau deploy (kế hoạch)
 
 LWeb --> LApi : HTTP /api/*
