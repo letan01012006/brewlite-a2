@@ -69,7 +69,7 @@ Bảng đối chiếu giữa các thành phần triển khai trên sơ đồ [`d
 | **Frontend Container** | Next.js 16 Standalone Web Application (Port 3000) | `apps/web/`<br>`apps/web/Dockerfile`<br>`apps/web/next.config.ts` | `PORT=3000`<br>`HOSTNAME=0.0.0.0`<br>`BACKEND_API_URL` (Build-arg đóng cứng) | Phục vụ khách hàng và barista. Proxy `/api/*` tới backend theo `BACKEND_API_URL`. |
 | **Backend Container** | NestJS 12 Modular Monolith API Server (Port 4000) | `apps/api/`<br>`apps/api/Dockerfile`<br>`apps/api/docker-entrypoint.sh` | `PORT=4000`<br>`DATABASE_URL`<br>`JWT_SECRET`<br>`JWT_EXPIRES_IN`<br>`OTP_HASH_SECRET`<br>`PAYMENT_MOCK_ENABLED=true`<br>`TRUST_PROXY` | Global prefix `/api`. Tự động chạy `prisma migrate deploy` tại entrypoint. Bắt buộc `PAYMENT_MOCK_ENABLED=true` để bật thanh toán Ví/Thẻ mô phỏng tại Production. |
 | **Database Service** | PostgreSQL 16 Relational Database (Port 5432) | `docker-compose.yml` (service `db`) | `POSTGRES_USER`<br>`POSTGRES_PASSWORD`<br>`POSTGRES_DB` | Mạng nội bộ riêng biệt (Private Network), không mở cổng Public IP ra ngoài Internet. Local dùng volume `brewlite_pgdata`; Production dùng persistent volume do nền tảng quản lý. |
-| **Edge / Reverse Proxy** | Reverse Proxy & SSL/TLS Termination (Port 80/443) | Cấu hình nền tảng Production (Dự kiến) | Chứng chỉ SSL/TLS tự động (Let's Encrypt / Managed SSL) | Chấm dứt HTTPS tại cổng 443, điều hướng domain tới Frontend (:3000) và API (:4000). |
+| **Edge / Reverse Proxy** | Reverse Proxy & SSL/TLS Termination (Port 80/443) | Cấu hình nền tảng Production (Dự kiến) | Chứng chỉ SSL/TLS tự động (Let's Encrypt / Managed SSL) | Chấm dứt HTTPS tại cổng 443, chuyển toàn bộ request của domain tới Frontend (:3000). Frontend tự proxy `/api/*` sang Backend (:4000) qua Next.js rewrite (`BACKEND_API_URL`). |
 | **Container Registry** | GitHub Packages / GHCR (`ghcr.io`) | `.github/workflows/cd.yml` | `GITHUB_TOKEN` (`github.token`) | Lưu trữ các Docker image bất biến với tag `sha-<7 ký tự>` và `latest` (`ghcr.io/<owner>/brewlite-a2/frontend`, `backend`). |
 | **CI/CD Automation** | GitHub Actions Workflows | `.github/workflows/ci.yml`<br>`.github/workflows/cd.yml` | `[TÊN SECRET DEPLOY (chưa cấu hình)]` | CI kiểm tra chất lượng (lint, test, build, compose smoke test); CD build & push image lên GHCR sau khi CI thành công trên `main`. |
 
@@ -78,6 +78,8 @@ Bảng đối chiếu giữa các thành phần triển khai trên sơ đồ [`d
 ---
 
 ## Deploy production và rollback (Task 5.3)
+
+> **Trạng thái: kế hoạch.** `cd.yml` hiện chỉ có job `publish` (build và đẩy image lên GHCR). Job `deploy` sẽ được thêm khi nhóm chốt nền tảng production. Các bước dưới đây là quy trình dự kiến.
 
 Kế hoạch triển khai tự động (Continuous Deployment) và quy trình phục hồi (Rollback) cho môi trường Production:
 

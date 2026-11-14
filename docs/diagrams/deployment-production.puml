@@ -2,85 +2,82 @@
 skinparam backgroundColor white
 skinparam shadowing false
 skinparam defaultFontName "Arial"
-skinparam defaultFontSize 12
-skinparam linetype ortho
+skinparam defaultFontSize 13
+skinparam nodesep 40
+skinparam ranksep 55
+top to bottom direction
 
-title BrewLite A2 — UML Deployment Diagram (Local, CI/CD & Production)
+title BrewLite A2 — UML Deployment Diagram (Local, CI/CD và Production)
 
-node "Thiết bị Người dùng\n(Customer / Barista)" as ClientDevice {
-  artifact "Trình duyệt Web\n(Mobile-first / Desktop)" as Browser
+node "Thiết bị người dùng\n(Customer / Barista)" as Client {
+  artifact "Trình duyệt Web\n(mobile-first / desktop)" as Browser
 }
 
-node "Môi trường Phát triển\n(Local Development)" as LocalEnv {
-  node "Docker Compose (Local)" as LocalCompose {
-    component "frontend (:3000)" as LocalWeb
-    component "backend (:4000)" as LocalApi
-    database "PostgreSQL 16 (:5432)\nVolume: brewlite_pgdata" as LocalDb
-    LocalWeb -down-> LocalApi : HTTP /api/*
-    LocalApi -down-> LocalDb : TCP 5432
+node "GitHub (CI/CD và Container Registry)" as GH {
+  artifact "Repository\nletan01012006/brewlite-a2" as Repo
+  node "GitHub Actions Runner" as GHA {
+    component "ci.yml\nlint · test · build · compose smoke test" as CI
+    component "cd.yml\njob publish: build & push image\njob deploy: Task 5.3 (kế hoạch, chưa có trong cd.yml)" as CD
   }
+  node "GHCR (ghcr.io)" as GHCR {
+    artifact "…/backend\ntag: latest, sha-<7 ký tự>" as ImgApi
+    artifact "…/frontend\ntag: latest, sha-<7 ký tự>" as ImgWeb
+  }
+  artifact "GITHUB_TOKEN (github.token)\n+ [TÊN SECRET DEPLOY – chưa cấu hình]" as Tok
 }
 
-node "CI/CD & Container Registry\n(GitHub)" as GitHubEnv {
-  artifact "GitHub Repository\n(letan01012006/brewlite-a2)" as GitRepo
-  node "GitHub Actions Runner" as GHARunner {
-    component "Workflow: ci.yml\n(Lint, Test, Build, Smoke Test)" as CIJob
-    component "Workflow: cd.yml\n- Job publish (Build & Push GHCR)\n- Job deploy (Task 5.3 – kế hoạch, chưa có trong cd.yml)" as CDJob
+node "Production  ([NỀN TẢNG PRODUCTION] – chưa xác định)" as Prod {
+  node "Edge / Reverse Proxy (dự kiến)\nHTTPS :443 · [DOMAIN PRODUCTION]" as Edge {
+    component "TLS termination\nchuyển toàn bộ lưu lượng tới frontend :3000" as Router
   }
-  node "GitHub Container Registry\n(ghcr.io)" as GHCR {
-    artifact "ghcr.io/.../frontend\n(tag: latest, sha-<7 ký tự>)" as ImgWeb
-    artifact "ghcr.io/.../backend\n(tag: latest, sha-<7 ký tự>)" as ImgApi
+  node "Container: Frontend" as FE {
+    component "Next.js standalone :3000\n(apps/web)\nrewrite /api/* → backend" as Web
   }
-  frame "GitHub Secrets & Tokens" as GHSecrets {
-    artifact "GITHUB_TOKEN (github.token)\n[TÊN SECRET DEPLOY (chưa cấu hình)]" as SecretArtifacts
+  node "Container: Backend" as BE {
+    component "NestJS API :4000 (apps/api)\nentrypoint: prisma migrate deploy" as Api
+    component "GET /api/health" as Health
   }
-
-  GitRepo -down-> CIJob : Push / PR to main
-  CIJob -right-> CDJob : workflow_run (success)
-  CDJob -down-> ImgWeb : docker push
-  CDJob -down-> ImgApi : docker push
-  GHSecrets .right.> CDJob : Inject tokens / secrets
+  node "Database (mạng riêng, không có IP public)" as DBN {
+    database "PostgreSQL 16 :5432" as Db
+    storage "Persistent volume\ndo [NỀN TẢNG PRODUCTION] quản lý" as Vol
+  }
+  note right of Web
+    BACKEND_API_URL=http://backend:4000/api
+    được đóng cứng lúc build (cd.yml)
+  end note
+  note right of Api
+    Env/secret: DATABASE_URL, JWT_SECRET,
+    OTP_HASH_SECRET, PORT=4000,
+    PAYMENT_MOCK_ENABLED=true (bắt buộc cho WALLET/CARD)
+  end note
 }
 
-node "Môi trường Production\n([NỀN TẢNG PRODUCTION])" as ProdEnv {
-  node "Edge / Reverse Proxy / CDN (dự kiến)\n([DOMAIN PRODUCTION])" as EdgeProxy {
-    component "HTTPS Termination (Port 443)\nRouting: / -> :3000 | /api/* -> :4000" as Router
-  }
-
-  node "Container Service: Frontend" as ProdWebNode {
-    component "Next.js Standalone Server\n(apps/web — Port 3000)" as ProdWeb
-    artifact "Env & Build-arg:\nBACKEND_API_URL=http://backend:4000/api\n(Đóng cứng lúc build trong cd.yml)\nPORT=3000, HOSTNAME=0.0.0.0" as WebEnv
-    WebEnv .up.> ProdWeb
-  }
-
-  node "Container Service: Backend" as ProdApiNode {
-    component "NestJS API Server\n(apps/api — Port 4000)\nEntrypoint: prisma migrate deploy" as ProdApi
-    component "Health Check Endpoint\nGET /api/health" as HealthEp
-    artifact "Secrets & Env:\nDATABASE_URL, JWT_SECRET,\nOTP_HASH_SECRET, PORT=4000,\nPAYMENT_MOCK_ENABLED=true\n(Bắt buộc để bật WALLET/CARD)" as ApiEnv
-    ApiEnv .up.> ProdApi
-    ProdApi -right- HealthEp
-  }
-
-  node "Database Service\n(Private Network — No Public IP)" as ProdDbNode {
-    database "PostgreSQL 16\n(Port 5432)" as ProdDb
-    storage "Persistent Storage\n(Persistent volume do [NỀN TẢNG PRODUCTION] quản lý)" as PgVolume
-    ProdDb -down- PgVolume : Mount /var/lib/postgresql/data
-  }
-
-  component "Logging & Monitoring (dự kiến)\n([NỀN TẢNG PRODUCTION] Logs)" as ProdLogs
-
-  Router -down-> ProdWeb : HTTP :3000 (Internal)
-  Router -down-> ProdApi : HTTP :4000 (/api/*)
-  ProdWeb -right-> ProdApi : Internal Rewrite\nhttp://backend:4000/api
-  ProdApi -down-> ProdDb : TCP :5432 (SSL/Internal)
-  ProdWeb .down.> ProdLogs : stdout / stderr
-  ProdApi .down.> ProdLogs : stdout / stderr
+node "Local (Docker Compose)" as Local {
+  component "frontend :3000" as LWeb
+  component "backend :4000" as LApi
+  database "PostgreSQL 16 :5432\nvolume brewlite_pgdata" as LDb
 }
 
-Browser -down-> Router : HTTPS (Port 443)\nhttps://[DOMAIN PRODUCTION]
-CDJob -down-> ProdEnv : Trigger Deploy (Kế hoạch Task 5.3)\n(Image tag: sha-<7 ký tự>)
-ImgWeb .down.> ProdWebNode : docker pull
-ImgApi .down.> ProdApiNode : docker pull
-CDJob .down.> HealthEp : Post-deploy Smoke & Health Check (Kế hoạch)
+Browser --> Router : HTTPS :443
+Router --> Web : HTTP :3000
+Web --> Api : HTTP :4000 (/api, hostname backend)
+Api --> Db : TCP :5432
+Db -- Vol : mount /var/lib/postgresql/data
+Api -right- Health
 
+Repo --> CI : push / PR vào main
+CI --> CD : workflow_run (thành công)
+CD --> ImgApi : docker push
+CD --> ImgWeb : docker push
+Tok ..> CD
+ImgWeb ..> Web : docker pull
+ImgApi ..> Api : docker pull
+CD ..> Health : health check sau deploy (kế hoạch)
+
+LWeb --> LApi : HTTP /api/*
+LApi --> LDb : TCP 5432
+
+Client -[hidden]down-> GH
+GH -[hidden]down-> Prod
+Prod -[hidden]right-> Local
 @enduml
